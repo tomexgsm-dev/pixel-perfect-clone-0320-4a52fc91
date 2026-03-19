@@ -64,7 +64,7 @@ export function Layout({ children }: LayoutProps) {
     },
   });
 
-  const handleNewChat = () => createMutation.mutate();
+  const handleNewChat = () => createMutation.mutate({});
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
