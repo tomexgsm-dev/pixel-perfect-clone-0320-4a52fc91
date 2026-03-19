@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Crown, Loader2, Sparkles, Lock, Download, X, Shuffle, Trophy, AlertTriangle } from "lucide-react";
+import { Crown, Loader2, Sparkles, Lock, Download, X, Shuffle, Trophy, AlertTriangle, Copy, Scissors, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -56,6 +56,8 @@ export default function TemplatesPage() {
   const navigate = useNavigate();
   const [generating, setGenerating] = useState<string | null>(null);
   const [result, setResult] = useState<{ imageUrl: string; chatReply: string; templateName: string } | null>(null);
+  const [editedText, setEditedText] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
 
   // Determine current limits for FOMO
@@ -105,6 +107,8 @@ export default function TemplatesPage() {
       if (data?.error) throw new Error(data.error);
 
       setResult({ imageUrl: data.imageUrl, chatReply: data.chatReply, templateName: template.name });
+      setEditedText(data.chatReply);
+      setIsEditing(false);
 
       if (!isPro) {
         if (user) { decrementChat(); decrementImages(); } 
@@ -135,6 +139,8 @@ export default function TemplatesPage() {
       if (data?.error) throw new Error(data.error);
 
       setResult({ imageUrl: data.imageUrl, chatReply: data.chatReply, templateName: t.templates.randomTitle });
+      setEditedText(data.chatReply);
+      setIsEditing(false);
 
       if (!isPro) {
         if (user) { decrementChat(); decrementImages(); }
@@ -339,9 +345,57 @@ export default function TemplatesPage() {
                     </button>
                   </div>
                   <img src={result.imageUrl} alt={result.templateName} className="w-full rounded-xl border border-border" />
-                  <div className="bg-secondary/50 rounded-xl p-4 text-sm text-foreground whitespace-pre-wrap">
-                    {result.chatReply}
+                  
+                  {/* Editable text area */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Pencil className="w-3 h-3" />
+                        {t.templates.editHint}
+                      </span>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(editedText);
+                            toast.success(t.templates.copied);
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-lg transition-colors"
+                        >
+                          <Copy className="w-3 h-3" />
+                          {t.templates.copyText}
+                        </button>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(editedText);
+                            setEditedText("");
+                            toast.success(t.templates.cut);
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-lg transition-colors"
+                        >
+                          <Scissors className="w-3 h-3" />
+                          {t.templates.cutText}
+                        </button>
+                      </div>
+                    </div>
+                    {isEditing ? (
+                      <textarea
+                        value={editedText}
+                        onChange={(e) => setEditedText(e.target.value)}
+                        onBlur={() => setIsEditing(false)}
+                        autoFocus
+                        className="w-full bg-secondary/50 rounded-xl p-4 text-sm text-foreground border border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-y min-h-[80px]"
+                        rows={4}
+                      />
+                    ) : (
+                      <div
+                        onClick={() => setIsEditing(true)}
+                        className="bg-secondary/50 rounded-xl p-4 text-sm text-foreground whitespace-pre-wrap cursor-text hover:border-primary/30 border border-transparent transition-colors min-h-[80px]"
+                      >
+                        {editedText || <span className="text-muted-foreground italic">...</span>}
+                      </div>
+                    )}
                   </div>
+
                   <button
                     onClick={handleDownload}
                     className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary text-primary-foreground rounded-xl font-medium text-sm hover:scale-[1.02] active:scale-[0.98] transition-transform"
