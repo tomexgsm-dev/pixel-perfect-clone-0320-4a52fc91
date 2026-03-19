@@ -36,7 +36,7 @@ export function Layout({ children }: LayoutProps) {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (opts?: { title?: string; appId?: string; systemPrompt?: string }) => {
+    mutationFn: async (opts: { title?: string; appId?: string; systemPrompt?: string } = {}) => {
       const { data, error } = await supabase
         .from("conversations")
         .insert({ title: opts?.title || "New Chat", app_id: opts?.appId, system_prompt: opts?.systemPrompt })
