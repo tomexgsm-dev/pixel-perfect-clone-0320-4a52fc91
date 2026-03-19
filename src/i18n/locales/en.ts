@@ -30,6 +30,7 @@ export const en = {
     attach: "Add attachment",
     removeAttachment: "Remove attachment",
     attachmentTooLarge: "File is too large (max 10MB)",
+    dropFile: "Drop file here",
   },
   images: {
     title: "AI Image Generation",

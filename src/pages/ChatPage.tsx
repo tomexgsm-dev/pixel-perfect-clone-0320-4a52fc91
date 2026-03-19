@@ -59,9 +59,11 @@ export default function ChatPage() {
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounterRef = useRef(0);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 
@@ -74,13 +76,14 @@ export default function ChatPage() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    
+    if (file) processFile(file);
+  };
+
+  const processFile = (file: File) => {
     if (file.size > MAX_FILE_SIZE) {
       alert(t.chat.attachmentTooLarge);
       return;
     }
-
     setAttachment(file);
     if (file.type.startsWith("image/")) {
       const url = URL.createObjectURL(file);
@@ -88,6 +91,38 @@ export default function ChatPage() {
     } else {
       setAttachmentPreview(null);
     }
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file);
   };
 
   const removeAttachment = () => {
@@ -156,7 +191,22 @@ export default function ChatPage() {
           <Loader2 className="w-8 h-8 animate-spin" />
         </div>
       ) : (
-        <div className="flex flex-col h-full absolute inset-0">
+        <div
+          className="flex flex-col h-full absolute inset-0 relative"
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {/* Drop overlay */}
+          {isDragging && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm border-2 border-dashed border-primary rounded-2xl m-4 pointer-events-none">
+              <div className="flex flex-col items-center gap-2 text-primary">
+                <Paperclip className="w-10 h-10" />
+                <p className="text-lg font-semibold">{t.chat.dropFile}</p>
+              </div>
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto pb-32">
             {messages.length === 0 && !streamingMessage && (
               <div className="h-full flex flex-col items-center justify-center text-center p-8 max-w-md mx-auto">
