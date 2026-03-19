@@ -119,7 +119,9 @@ export type Database = {
           free_images_left: number
           id: string
           plan: string
+          points: number
           updated_at: string
+          username: string | null
         }
         Insert: {
           created_at?: string
@@ -127,7 +129,9 @@ export type Database = {
           free_images_left?: number
           id: string
           plan?: string
+          points?: number
           updated_at?: string
+          username?: string | null
         }
         Update: {
           created_at?: string
@@ -135,7 +139,9 @@ export type Database = {
           free_images_left?: number
           id?: string
           plan?: string
+          points?: number
           updated_at?: string
+          username?: string | null
         }
         Relationships: []
       }
