@@ -146,6 +146,18 @@ export function Layout({ children }: LayoutProps) {
             {t.sidebar.apps}
           </Link>
           <Link
+            to="/templates"
+            className={cn(
+              "w-full flex items-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all border",
+              location.pathname === "/templates"
+                ? "bg-sidebar-accent text-sidebar-accent-foreground border-border/50"
+                : "text-sidebar-foreground hover:bg-sidebar-accent/50 border-transparent"
+            )}
+          >
+            <Layers className="w-4 h-4" />
+            {t.templates.sidebarLabel}
+          </Link>
+          <Link
             to="/pricing"
             className={cn(
               "w-full flex items-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all border",

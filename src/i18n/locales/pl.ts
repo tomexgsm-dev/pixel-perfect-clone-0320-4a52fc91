@@ -123,4 +123,12 @@ export const pl = {
       fitness: { name: "Trener personalny", description: "Plany treningowe i porady", systemPrompt: "Jesteś certyfikowanym trenerem personalnym. Twórz plany treningowe." },
     },
   },
+  templates: {
+    title: "Szablony Click & Generate",
+    subtitle: "Generuj obraz + opis jednym kliknięciem",
+    proOnly: "Ten szablon jest dostępny tylko dla PRO",
+    error: "Błąd generowania szablonu",
+    download: "Pobierz obraz",
+    sidebarLabel: "Szablony",
+  },
 };
