@@ -1,7 +1,7 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Bot, User, Copy, Check, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Bot, User, Copy, Check, ThumbsUp, ThumbsDown, FileText, Download } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n";
@@ -30,6 +30,8 @@ export function ChatMessage({ message, isStreaming, onRate }: ChatMessageProps) 
     onRate(message.id, newRating);
   };
 
+  const isImage = message.attachment_type?.startsWith("image/");
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -56,6 +58,32 @@ export function ChatMessage({ message, isStreaming, onRate }: ChatMessageProps) 
           <div className="font-semibold text-sm text-muted-foreground mb-1">
             {isUser ? t.chat.you : t.chat.assistant}
           </div>
+
+          {/* Attachment display */}
+          {message.attachment_url && (
+            <div className="mb-2">
+              {isImage ? (
+                <a href={message.attachment_url} target="_blank" rel="noopener noreferrer">
+                  <img
+                    src={message.attachment_url}
+                    alt={message.attachment_name || "attachment"}
+                    className="max-w-xs max-h-64 rounded-xl border border-border object-cover hover:opacity-90 transition-opacity cursor-pointer"
+                  />
+                </a>
+              ) : (
+                <a
+                  href={message.attachment_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm hover:bg-secondary transition-colors"
+                >
+                  <FileText className="w-4 h-4 text-muted-foreground" />
+                  <span className="truncate max-w-[200px]">{message.attachment_name || "File"}</span>
+                  <Download className="w-3.5 h-3.5 text-muted-foreground" />
+                </a>
+              )}
+            </div>
+          )}
 
           <div className={cn(
             "prose",
