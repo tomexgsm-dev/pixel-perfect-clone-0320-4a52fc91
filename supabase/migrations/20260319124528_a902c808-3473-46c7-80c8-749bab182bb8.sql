@@ -1,0 +1,1 @@
+CREATE POLICY "Anyone can read profiles for leaderboard" ON public.profiles FOR SELECT TO anon USING (true);
