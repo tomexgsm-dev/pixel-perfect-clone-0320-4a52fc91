@@ -27,6 +27,9 @@ export const en = {
     copy: "Copy",
     goodResponse: "Good response",
     badResponse: "Bad response",
+    attach: "Add attachment",
+    removeAttachment: "Remove attachment",
+    attachmentTooLarge: "File is too large (max 10MB)",
   },
   images: {
     title: "AI Image Generation",

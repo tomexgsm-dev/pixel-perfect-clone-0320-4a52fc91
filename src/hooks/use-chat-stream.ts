@@ -6,6 +6,15 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   rating?: number | null;
+  attachment_url?: string | null;
+  attachment_type?: string | null;
+  attachment_name?: string | null;
+}
+
+interface AttachmentData {
+  url: string;
+  type: string;
+  name: string;
 }
 
 export function useChatStream(conversationId: string | undefined) {
@@ -13,7 +22,12 @@ export function useChatStream(conversationId: string | undefined) {
   const [streamingMessage, setStreamingMessage] = useState("");
   const [streamError, setStreamError] = useState<string | null>(null);
 
-  const sendMessage = useCallback(async (content: string, messages: Message[], systemPrompt?: string | null): Promise<boolean> => {
+  const sendMessage = useCallback(async (
+    content: string,
+    messages: Message[],
+    systemPrompt?: string | null,
+    attachment?: AttachmentData | null
+  ): Promise<boolean> => {
     if (!conversationId) return false;
 
     setIsStreaming(true);
@@ -22,18 +36,44 @@ export function useChatStream(conversationId: string | undefined) {
 
     try {
       // Save user message to DB
-      await supabase.from("messages").insert({
+      const insertData: any = {
         conversation_id: conversationId,
         role: "user",
         content,
-      });
+      };
+      if (attachment) {
+        insertData.attachment_url = attachment.url;
+        insertData.attachment_type = attachment.type;
+        insertData.attachment_name = attachment.name;
+      }
+      await supabase.from("messages").insert(insertData);
 
       // Build message history for AI
-      const aiMessages = messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-      aiMessages.push({ role: "user", content });
+      const aiMessages: any[] = messages.map((m) => {
+        if (m.attachment_url && m.attachment_type?.startsWith("image/")) {
+          return {
+            role: m.role,
+            content: [
+              { type: "text", text: m.content },
+              { type: "image_url", image_url: { url: m.attachment_url } },
+            ],
+          };
+        }
+        return { role: m.role, content: m.content };
+      });
+
+      // Add current message
+      if (attachment && attachment.type.startsWith("image/")) {
+        aiMessages.push({
+          role: "user",
+          content: [
+            { type: "text", text: content },
+            { type: "image_url", image_url: { url: attachment.url } },
+          ],
+        });
+      } else {
+        aiMessages.push({ role: "user", content });
+      }
 
       const resp = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`,
