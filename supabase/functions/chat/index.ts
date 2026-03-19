@@ -11,8 +11,14 @@ const MODELS = [
   "google/gemini-2.5-flash-lite",
 ];
 
+const VISION_MODEL = "google/gemini-2.5-flash";
+
 function pickRandomModel() {
   return MODELS[Math.floor(Math.random() * MODELS.length)];
+}
+
+function hasImages(messages: any[]): boolean {
+  return messages.some((m: any) => Array.isArray(m.content) && m.content.some((c: any) => c.type === "image_url"));
 }
 
 serve(async (req) => {
