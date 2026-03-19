@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Crown, Loader2, Sparkles, Lock, Download, X, Shuffle, Trophy, AlertTriangle } from "lucide-react";
+import { Crown, Loader2, Sparkles, Lock, Download, X, Shuffle, Trophy, AlertTriangle, Copy, Scissors, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
