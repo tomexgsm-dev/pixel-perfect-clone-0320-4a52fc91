@@ -4,17 +4,19 @@ import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/i18n";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function Home() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { t } = useI18n();
+  const { user } = useAuth();
 
   const createMutation = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase
         .from("conversations")
-        .insert({ title: "New Chat" })
+        .insert({ title: "New Chat", user_id: user?.id })
         .select()
         .single();
       if (error) throw error;
