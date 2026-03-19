@@ -1,20 +1,22 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Layout } from "@/components/Layout";
 import { ChatMessage } from "@/components/ChatMessage";
 import { useChatStream, type Message } from "@/hooks/use-chat-stream";
-import { Send, Loader2, Paperclip, X, Image, FileText } from "lucide-react";
+import { useProfile } from "@/hooks/use-profile";
+import { Send, Loader2, Paperclip, X, FileText, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 export default function ChatPage() {
   const { id: conversationId } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const { t } = useI18n();
+  const { canChat, decrementChat, profile } = useProfile();
 
   const { data: conversation } = useQuery({
     queryKey: ["conversation", conversationId],
@@ -66,7 +68,6 @@ export default function ChatPage() {
   const dragCounterRef = useRef(0);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-
   useEffect(() => { scrollToBottom(); }, [dbMessages, streamingMessage]);
 
   const handleRate = useCallback(async (messageId: string, rating: 1 | -1 | null) => {
@@ -86,71 +87,35 @@ export default function ChatPage() {
     }
     setAttachment(file);
     if (file.type.startsWith("image/")) {
-      const url = URL.createObjectURL(file);
-      setAttachmentPreview(url);
+      setAttachmentPreview(URL.createObjectURL(file));
     } else {
       setAttachmentPreview(null);
     }
   };
 
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterRef.current++;
-    if (e.dataTransfer.types.includes("Files")) {
-      setIsDragging(true);
-    }
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterRef.current--;
-    if (dragCounterRef.current === 0) {
-      setIsDragging(false);
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterRef.current = 0;
-    setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) processFile(file);
-  };
+  const handleDragEnter = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); dragCounterRef.current++; if (e.dataTransfer.types.includes("Files")) setIsDragging(true); };
+  const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); dragCounterRef.current--; if (dragCounterRef.current === 0) setIsDragging(false); };
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
+  const handleDrop = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); dragCounterRef.current = 0; setIsDragging(false); const file = e.dataTransfer.files?.[0]; if (file) processFile(file); };
 
   const removeAttachment = () => {
     setAttachment(null);
-    if (attachmentPreview) {
-      URL.revokeObjectURL(attachmentPreview);
-      setAttachmentPreview(null);
-    }
+    if (attachmentPreview) { URL.revokeObjectURL(attachmentPreview); setAttachmentPreview(null); }
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const uploadFile = async (file: File): Promise<{ url: string; type: string; name: string } | null> => {
+  const uploadFile = async (file: File) => {
     const ext = file.name.split(".").pop() || "bin";
     const path = `${conversationId}/${crypto.randomUUID()}.${ext}`;
-    
     const { error } = await supabase.storage.from("chat-attachments").upload(path, file);
-    if (error) {
-      console.error("Upload error:", error);
-      return null;
-    }
-    
+    if (error) { console.error("Upload error:", error); return null; }
     const { data: urlData } = supabase.storage.from("chat-attachments").getPublicUrl(path);
     return { url: urlData.publicUrl, type: file.type, name: file.name };
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!input.trim() && !attachment) || isStreaming || !conversationId) return;
+    if ((!input.trim() && !attachment) || isStreaming || !conversationId || !canChat) return;
 
     const content = input.trim();
     const currentAttachment = attachment;
@@ -159,7 +124,6 @@ export default function ChatPage() {
     if (textareaRef.current) textareaRef.current.style.height = "auto";
 
     let attachmentData: { url: string; type: string; name: string } | null = null;
-    
     if (currentAttachment) {
       setUploading(true);
       attachmentData = await uploadFile(currentAttachment);
@@ -168,15 +132,13 @@ export default function ChatPage() {
 
     const ok = await sendMessage(content || "📎 " + (attachmentData?.name || "attachment"), messages, conversation?.system_prompt, attachmentData);
     if (ok) {
+      decrementChat();
       queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e);
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(e); }
   };
 
   const autoResize = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -198,7 +160,6 @@ export default function ChatPage() {
           onDragOver={handleDragOver}
           onDrop={handleDrop}
         >
-          {/* Drop overlay */}
           {isDragging && (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm border-2 border-dashed border-primary rounded-2xl m-4 pointer-events-none">
               <div className="flex flex-col items-center gap-2 text-primary">
@@ -228,10 +189,7 @@ export default function ChatPage() {
 
             {(isStreaming || streamingMessage) && (
               <div className="group">
-                <ChatMessage
-                  message={{ id: "streaming", role: "assistant", content: streamingMessage }}
-                  isStreaming={true}
-                />
+                <ChatMessage message={{ id: "streaming", role: "assistant", content: streamingMessage }} isStreaming={true} />
               </div>
             )}
 
@@ -241,13 +199,21 @@ export default function ChatPage() {
           {/* Input */}
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background to-transparent pt-6 pb-4 px-4 md:px-8">
             <div className="max-w-3xl mx-auto relative">
+              {!canChat && (
+                <div className="mb-2 px-4 py-3 text-sm bg-card border border-border rounded-xl flex items-center justify-between">
+                  <span className="text-muted-foreground">{t.pricing.limitReached}</span>
+                  <Link to="/pricing" className="flex items-center gap-1 text-primary font-medium text-sm hover:underline">
+                    <Crown className="w-4 h-4" /> PRO
+                  </Link>
+                </div>
+              )}
+
               {streamError && (
                 <div className="mb-2 px-4 py-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-xl">
                   {streamError}
                 </div>
               )}
 
-              {/* Attachment Preview */}
               {attachment && (
                 <div className="mb-2 flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2">
                   {attachmentPreview ? (
@@ -268,26 +234,21 @@ export default function ChatPage() {
               )}
 
               <form onSubmit={handleSubmit} className="relative">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  className="hidden"
-                  accept="image/*,.pdf,.txt,.md,.csv,.json,.doc,.docx"
-                  onChange={handleFileSelect}
-                />
+                <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.txt,.md,.csv,.json,.doc,.docx" onChange={handleFileSelect} />
                 <textarea
                   ref={textareaRef}
                   value={input}
                   onChange={(e) => { setInput(e.target.value); autoResize(e); }}
                   onKeyDown={handleKeyDown}
-                  placeholder={t.chat.placeholder}
+                  placeholder={canChat ? t.chat.placeholder : t.pricing.limitReached}
                   rows={1}
-                  className="w-full resize-none bg-card border border-border rounded-2xl pl-12 pr-14 py-3.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 shadow-lg"
+                  disabled={!canChat}
+                  className="w-full resize-none bg-card border border-border rounded-2xl pl-12 pr-14 py-3.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 shadow-lg disabled:opacity-50"
                 />
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={isStreaming || uploading}
+                  disabled={isStreaming || uploading || !canChat}
                   className="absolute left-2 bottom-2 p-2.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                   title={t.chat.attach}
                 >
@@ -295,10 +256,10 @@ export default function ChatPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={(!input.trim() && !attachment) || isStreaming || uploading}
+                  disabled={(!input.trim() && !attachment) || isStreaming || uploading || !canChat}
                   className={cn(
                     "absolute right-2 bottom-2 p-2.5 rounded-xl transition-all",
-                    (input.trim() || attachment) && !isStreaming && !uploading
+                    (input.trim() || attachment) && !isStreaming && !uploading && canChat
                       ? "bg-primary text-primary-foreground shadow-glow hover:scale-105"
                       : "bg-secondary text-muted-foreground"
                   )}
