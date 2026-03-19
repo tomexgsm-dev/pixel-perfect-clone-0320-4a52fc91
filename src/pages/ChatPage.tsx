@@ -92,6 +92,52 @@ export default function ChatPage() {
     }
   };
 
+  const processFile = (file: File) => {
+    if (file.size > MAX_FILE_SIZE) {
+      alert(t.chat.attachmentTooLarge);
+      return;
+    }
+    setAttachment(file);
+    if (file.type.startsWith("image/")) {
+      const url = URL.createObjectURL(file);
+      setAttachmentPreview(url);
+    } else {
+      setAttachmentPreview(null);
+    }
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file);
+  };
+
   const removeAttachment = () => {
     setAttachment(null);
     if (attachmentPreview) {
