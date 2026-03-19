@@ -42,7 +42,7 @@ export default function AppsPage() {
       const item = t.apps.items[app.id as keyof typeof t.apps.items];
       const { data, error } = await supabase
         .from("conversations")
-        .insert({ title: item.name, app_id: app.id, system_prompt: item.systemPrompt })
+        .insert({ title: item.name, app_id: app.id, system_prompt: item.systemPrompt, user_id: user?.id })
         .select()
         .single();
       if (error) throw error;
