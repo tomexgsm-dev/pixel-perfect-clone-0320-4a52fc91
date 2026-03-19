@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider } from "@/i18n";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { FreeLimitsProvider } from "@/hooks/use-free-limits";
 import Home from "./pages/Home";
 import ChatPage from "./pages/ChatPage";
 import AppsPage from "./pages/AppsPage";
