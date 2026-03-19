@@ -48,7 +48,13 @@ export default function PricingPage() {
     }
   };
 
+  const navigate = useNavigate();
+
   const handleUpgrade = async () => {
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
     setCheckingOut(true);
     try {
       const { data, error } = await supabase.functions.invoke("create-checkout");
