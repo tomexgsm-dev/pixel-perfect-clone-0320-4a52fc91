@@ -10,6 +10,7 @@ import ChatPage from "./pages/ChatPage";
 import AppsPage from "./pages/AppsPage";
 import ImagesPage from "./pages/ImagesPage";
 import PricingPage from "./pages/PricingPage";
+import TemplatesPage from "./pages/TemplatesPage";
 import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
@@ -53,6 +54,7 @@ const App = () => (
               <Route path="/apps" element={<AppsPage />} />
               <Route path="/images" element={<ImagesPage />} />
               <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/templates" element={<TemplatesPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

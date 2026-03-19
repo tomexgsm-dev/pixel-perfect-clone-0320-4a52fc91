@@ -123,4 +123,12 @@ export const en = {
       fitness: { name: "Personal Trainer", description: "Training plans and advice", systemPrompt: "You are a certified personal trainer. Create personalized training plans." },
     },
   },
+  templates: {
+    title: "Click & Generate Templates",
+    subtitle: "Generate image + description with one click",
+    proOnly: "This template is available for PRO only",
+    error: "Template generation error",
+    download: "Download image",
+    sidebarLabel: "Templates",
+  },
 };

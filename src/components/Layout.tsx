@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { MessageSquare, Plus, Trash2, Menu, X, Sparkles, Image, LayoutGrid, Crown, LogOut, LogIn } from "lucide-react";
+import { MessageSquare, Plus, Trash2, Menu, X, Sparkles, Image, LayoutGrid, Crown, LogOut, LogIn, Layers } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -144,6 +144,18 @@ export function Layout({ children }: LayoutProps) {
           >
             <LayoutGrid className="w-4 h-4" />
             {t.sidebar.apps}
+          </Link>
+          <Link
+            to="/templates"
+            className={cn(
+              "w-full flex items-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all border",
+              location.pathname === "/templates"
+                ? "bg-sidebar-accent text-sidebar-accent-foreground border-border/50"
+                : "text-sidebar-foreground hover:bg-sidebar-accent/50 border-transparent"
+            )}
+          >
+            <Layers className="w-4 h-4" />
+            {t.templates.sidebarLabel}
           </Link>
           <Link
             to="/pricing"
