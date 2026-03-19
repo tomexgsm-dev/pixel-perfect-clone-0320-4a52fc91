@@ -76,20 +76,7 @@ export default function ChatPage() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    
-    if (file.size > MAX_FILE_SIZE) {
-      alert(t.chat.attachmentTooLarge);
-      return;
-    }
-
-    setAttachment(file);
-    if (file.type.startsWith("image/")) {
-      const url = URL.createObjectURL(file);
-      setAttachmentPreview(url);
-    } else {
-      setAttachmentPreview(null);
-    }
+    if (file) processFile(file);
   };
 
   const processFile = (file: File) => {
