@@ -130,5 +130,13 @@ export const pl = {
     error: "Błąd generowania szablonu",
     download: "Pobierz obraz",
     sidebarLabel: "Szablony",
+    randomBtn: "🎲 Odkryj losowy viral obraz",
+    randomTitle: "Losowy viral obraz",
+    leaderboard: "Ranking graczy",
+    you: "Ty",
+    yourPoints: "Twoje punkty",
+    fomoWarning: "Kończy się Twój darmowy limit! Przejdź na PRO, by generować bez ograniczeń.",
+    fomoCritical: "Zostało Ci ostatnie darmowe zapytanie! Wejdź na PRO teraz!",
+    goProBtn: "Przejdź na PRO",
   },
 };

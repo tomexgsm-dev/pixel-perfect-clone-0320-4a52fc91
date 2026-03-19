@@ -130,5 +130,13 @@ export const en = {
     error: "Template generation error",
     download: "Download image",
     sidebarLabel: "Templates",
+    randomBtn: "🎲 Discover random viral image",
+    randomTitle: "Random viral image",
+    leaderboard: "Leaderboard",
+    you: "You",
+    yourPoints: "Your points",
+    fomoWarning: "Your free limits are running low! Upgrade to PRO for unlimited access.",
+    fomoCritical: "Last free request remaining! Go PRO now!",
+    goProBtn: "Go PRO",
   },
 };
