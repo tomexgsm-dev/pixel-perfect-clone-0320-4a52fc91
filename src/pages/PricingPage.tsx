@@ -1,31 +1,28 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { useProfile } from "@/hooks/use-profile";
 import { useAuth } from "@/hooks/use-auth";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useI18n } from "@/i18n";
 import { Check, Crown, Zap, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
-import { useState } from "react";
 
 export default function PricingPage() {
   const { profile, isPro } = useProfile();
   const { user } = useAuth();
   const { t } = useI18n();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [checkingOut, setCheckingOut] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [interval, setInterval] = useState<"monthly" | "yearly">("monthly");
 
-  // Check subscription on mount and after success
   useEffect(() => {
-    if (user) {
-      checkSubscription();
-    }
+    if (user) checkSubscription();
   }, [user]);
 
   useEffect(() => {
@@ -38,8 +35,7 @@ export default function PricingPage() {
   const checkSubscription = async () => {
     setChecking(true);
     try {
-      const { data, error } = await supabase.functions.invoke("check-subscription");
-      if (error) throw error;
+      await supabase.functions.invoke("check-subscription");
       queryClient.invalidateQueries({ queryKey: ["profile"] });
     } catch (err) {
       console.error("Check subscription error:", err);
@@ -48,20 +44,15 @@ export default function PricingPage() {
     }
   };
 
-  const navigate = useNavigate();
-
   const handleUpgrade = async () => {
-    if (!user) {
-      navigate("/auth");
-      return;
-    }
+    if (!user) { navigate("/auth"); return; }
     setCheckingOut(true);
     try {
-      const { data, error } = await supabase.functions.invoke("create-checkout");
+      const { data, error } = await supabase.functions.invoke("create-checkout", {
+        body: { interval },
+      });
       if (error) throw error;
-      if (data?.url) {
-        window.open(data.url, "_blank");
-      }
+      if (data?.url) window.open(data.url, "_blank");
     } catch (err: any) {
       toast.error(err.message || "Error creating checkout");
     } finally {
@@ -73,13 +64,15 @@ export default function PricingPage() {
     try {
       const { data, error } = await supabase.functions.invoke("customer-portal");
       if (error) throw error;
-      if (data?.url) {
-        window.open(data.url, "_blank");
-      }
+      if (data?.url) window.open(data.url, "_blank");
     } catch (err: any) {
       toast.error(err.message || "Error opening portal");
     }
   };
+
+  const displayPrice = interval === "yearly" ? "390 zł" : "39 zł";
+  const displayPeriod = interval === "yearly" ? t.pricing.year : t.pricing.month;
+  const monthlyEquivalent = interval === "yearly" ? "32,50 zł" : null;
 
   return (
     <Layout>
@@ -88,6 +81,35 @@ export default function PricingPage() {
           <div className="text-center mb-10">
             <h1 className="text-3xl font-display font-bold mb-2">{t.pricing.title}</h1>
             <p className="text-muted-foreground">{t.pricing.subtitle}</p>
+
+            {/* Interval toggle */}
+            <div className="mt-6 inline-flex items-center bg-secondary rounded-xl p-1 gap-1">
+              <button
+                onClick={() => setInterval("monthly")}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                  interval === "monthly"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {t.pricing.monthly}
+              </button>
+              <button
+                onClick={() => setInterval("yearly")}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2",
+                  interval === "yearly"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {t.pricing.yearly}
+                <span className="text-xs bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-md font-semibold">
+                  {t.pricing.savePercent}
+                </span>
+              </button>
+            </div>
           </div>
 
           <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
@@ -127,7 +149,17 @@ export default function PricingPage() {
                 <Crown className="w-5 h-5 text-yellow-500" />
                 <h2 className="text-xl font-bold">{t.pricing.pro}</h2>
               </div>
-              <p className="text-3xl font-bold">39 zł<span className="text-sm font-normal text-muted-foreground"> / {t.pricing.month}</span></p>
+              <div>
+                <p className="text-3xl font-bold">
+                  {displayPrice}
+                  <span className="text-sm font-normal text-muted-foreground"> / {displayPeriod}</span>
+                </p>
+                {monthlyEquivalent && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    ~{monthlyEquivalent} / {t.pricing.month}
+                  </p>
+                )}
+              </div>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li className="flex items-center gap-2"><Check className="w-4 h-4 text-primary" /> {t.pricing.proChat}</li>
                 <li className="flex items-center gap-2"><Check className="w-4 h-4 text-primary" /> {t.pricing.proImages}</li>
