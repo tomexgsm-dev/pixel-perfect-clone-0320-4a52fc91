@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { useProfile } from "@/hooks/use-profile";
 import { useAuth } from "@/hooks/use-auth";
+import { useNavigate } from "react-router-dom";
 import { useI18n } from "@/i18n";
 import { Check, Crown, Zap, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
