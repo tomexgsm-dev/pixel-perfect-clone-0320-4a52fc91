@@ -2,10 +2,13 @@ import { useState } from "react";
 import { Layout } from "@/components/Layout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Download, Trash2, Image as ImageIcon } from "lucide-react";
+import { Loader2, Download, Trash2, Image as ImageIcon, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n";
 import { toast } from "sonner";
+import { useProfile } from "@/hooks/use-profile";
+import { useAuth } from "@/hooks/use-auth";
+import { Link } from "react-router-dom";
 
 const QUICK_STYLES = [
   { key: "anime", prefix: "Anime style portrait, " },
@@ -21,6 +24,8 @@ export default function ImagesPage() {
   const [generating, setGenerating] = useState(false);
   const queryClient = useQueryClient();
   const { t } = useI18n();
+  const { canGenerateImage, decrementImages } = useProfile();
+  const { user } = useAuth();
 
   const { data: images, isLoading } = useQuery({
     queryKey: ["generated-images"],
@@ -44,7 +49,7 @@ export default function ImagesPage() {
 
   const handleGenerate = async (finalPrompt?: string) => {
     const p = finalPrompt || prompt.trim();
-    if (!p) return;
+    if (!p || !canGenerateImage) return;
     setGenerating(true);
 
     try {
@@ -67,13 +72,14 @@ export default function ImagesPage() {
       }
 
       const data = await resp.json();
-      
-      // Save to DB
+
       await supabase.from("generated_images").insert({
         prompt: p,
         image_url: data.imageUrl,
+        user_id: user?.id,
       });
 
+      decrementImages();
       queryClient.invalidateQueries({ queryKey: ["generated-images"] });
       setPrompt("");
       toast.success("Image generated!");
@@ -93,7 +99,15 @@ export default function ImagesPage() {
             <p className="text-sm text-muted-foreground">{t.images.subtitle}</p>
           </div>
 
-          {/* Prompt input */}
+          {!canGenerateImage && (
+            <div className="mb-4 px-4 py-3 bg-card border border-border rounded-xl flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">{t.pricing.limitReached}</span>
+              <Link to="/pricing" className="flex items-center gap-1 text-primary font-medium text-sm hover:underline">
+                <Crown className="w-4 h-4" /> PRO
+              </Link>
+            </div>
+          )}
+
           <div className="space-y-3 mb-8">
             <div className="flex gap-2">
               <textarea
@@ -101,33 +115,29 @@ export default function ImagesPage() {
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder={t.images.promptPlaceholder}
                 rows={2}
-                className="flex-1 resize-none bg-card border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                disabled={!canGenerateImage}
+                className="flex-1 resize-none bg-card border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
               />
               <button
                 onClick={() => handleGenerate()}
-                disabled={!prompt.trim() || generating}
+                disabled={!prompt.trim() || generating || !canGenerateImage}
                 className={cn(
                   "px-6 rounded-xl font-medium text-sm transition-all",
-                  prompt.trim() && !generating
+                  prompt.trim() && !generating && canGenerateImage
                     ? "bg-primary text-primary-foreground hover:scale-105 shadow-glow"
                     : "bg-secondary text-muted-foreground"
                 )}
               >
-                {generating ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  t.images.generateBtn
-                )}
+                {generating ? <Loader2 className="w-5 h-5 animate-spin" /> : t.images.generateBtn}
               </button>
             </div>
 
-            {/* Quick styles */}
             <div className="flex flex-wrap gap-2">
               {QUICK_STYLES.map(style => (
                 <button
                   key={style.key}
                   onClick={() => handleGenerate(style.prefix + (prompt || "beautiful scene"))}
-                  disabled={generating}
+                  disabled={generating || !canGenerateImage}
                   className="px-3 py-1.5 bg-card border border-border rounded-lg text-xs text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors disabled:opacity-50"
                 >
                   {t.images.styles[style.key as keyof typeof t.images.styles]}
@@ -143,7 +153,6 @@ export default function ImagesPage() {
             </div>
           )}
 
-          {/* Gallery */}
           <div className="mb-4">
             <h2 className="text-lg font-semibold">{t.images.myImages}</h2>
           </div>
@@ -167,19 +176,10 @@ export default function ImagesPage() {
                     <div className="absolute bottom-0 left-0 right-0 p-3">
                       <p className="text-xs text-foreground line-clamp-2 mb-2">{img.prompt}</p>
                       <div className="flex gap-2">
-                        <a
-                          href={img.image_url}
-                          download
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 bg-secondary rounded-lg hover:bg-secondary/80 text-secondary-foreground"
-                        >
+                        <a href={img.image_url} download target="_blank" rel="noopener noreferrer" className="p-1.5 bg-secondary rounded-lg hover:bg-secondary/80 text-secondary-foreground">
                           <Download className="w-3.5 h-3.5" />
                         </a>
-                        <button
-                          onClick={() => deleteMutation.mutate(img.id)}
-                          className="p-1.5 bg-destructive/20 rounded-lg hover:bg-destructive/30 text-destructive"
-                        >
+                        <button onClick={() => deleteMutation.mutate(img.id)} className="p-1.5 bg-destructive/20 rounded-lg hover:bg-destructive/30 text-destructive">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>

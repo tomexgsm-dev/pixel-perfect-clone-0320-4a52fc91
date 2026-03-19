@@ -1,11 +1,13 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { MessageSquare, Plus, Trash2, Menu, X, Sparkles, Image, LayoutGrid } from "lucide-react";
+import { MessageSquare, Plus, Trash2, Menu, X, Sparkles, Image, LayoutGrid, Crown, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useI18n, Lang } from "@/i18n";
+import { useAuth } from "@/hooks/use-auth";
+import { useProfile } from "@/hooks/use-profile";
 
 interface LayoutProps {
   children: ReactNode;
@@ -22,6 +24,8 @@ export function Layout({ children }: LayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const queryClient = useQueryClient();
   const { t, lang, setLang } = useI18n();
+  const { user, signOut } = useAuth();
+  const { profile, isPro } = useProfile();
 
   const { data: conversations, isLoading } = useQuery({
     queryKey: ["conversations"],
@@ -39,7 +43,12 @@ export function Layout({ children }: LayoutProps) {
     mutationFn: async (opts: { title?: string; appId?: string; systemPrompt?: string } = {}) => {
       const { data, error } = await supabase
         .from("conversations")
-        .insert({ title: opts?.title || "New Chat", app_id: opts?.appId, system_prompt: opts?.systemPrompt })
+        .insert({
+          title: opts?.title || "New Chat",
+          app_id: opts?.appId,
+          system_prompt: opts?.systemPrompt,
+          user_id: user?.id,
+        })
         .select()
         .single();
       if (error) throw error;
@@ -65,6 +74,11 @@ export function Layout({ children }: LayoutProps) {
   });
 
   const handleNewChat = () => createMutation.mutate({});
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/auth");
+  };
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
@@ -131,6 +145,19 @@ export function Layout({ children }: LayoutProps) {
             <LayoutGrid className="w-4 h-4" />
             {t.sidebar.apps}
           </Link>
+          <Link
+            to="/pricing"
+            className={cn(
+              "w-full flex items-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all border",
+              location.pathname === "/pricing"
+                ? "bg-sidebar-accent text-sidebar-accent-foreground border-border/50"
+                : "text-sidebar-foreground hover:bg-sidebar-accent/50 border-transparent"
+            )}
+          >
+            <Crown className="w-4 h-4" />
+            {t.sidebar.pricing}
+            {isPro && <span className="ml-auto text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded font-bold">PRO</span>}
+          </Link>
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
@@ -181,7 +208,30 @@ export function Layout({ children }: LayoutProps) {
           )}
         </div>
 
-        <div className="p-4 border-t border-sidebar-border text-xs text-muted-foreground flex items-center justify-between">
+        {/* User info & logout */}
+        <div className="p-3 border-t border-sidebar-border">
+          <div className="flex items-center gap-3 px-3 py-2">
+            <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-secondary-foreground">
+              {user?.email?.charAt(0).toUpperCase() || "?"}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-foreground truncate">{user?.email}</p>
+              <p className="text-xs text-muted-foreground">
+                {isPro ? "PRO" : "Free"}
+                {profile && profile.plan === "free" && ` · ${profile.free_chat_left}/${profile.free_images_left}`}
+              </p>
+            </div>
+            <button
+              onClick={handleSignOut}
+              className="p-1.5 rounded-lg hover:bg-destructive/20 hover:text-destructive text-muted-foreground transition-colors"
+              title={t.sidebar.logout}
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="px-4 pb-3 text-xs text-muted-foreground flex items-center justify-between">
           <span>{t.sidebar.poweredBy}</span>
           <div className="flex gap-1">
             {LANGUAGES.map(l => (

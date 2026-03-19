@@ -7,6 +7,7 @@ import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useI18n } from "@/i18n";
+import { useAuth } from "@/hooks/use-auth";
 
 interface AppDef {
   id: string;
@@ -34,13 +35,14 @@ export default function AppsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { t } = useI18n();
+  const { user } = useAuth();
 
   const createMutation = useMutation({
     mutationFn: async (app: AppDef) => {
       const item = t.apps.items[app.id as keyof typeof t.apps.items];
       const { data, error } = await supabase
         .from("conversations")
-        .insert({ title: item.name, app_id: app.id, system_prompt: item.systemPrompt })
+        .insert({ title: item.name, app_id: app.id, system_prompt: item.systemPrompt, user_id: user?.id })
         .select()
         .single();
       if (error) throw error;
