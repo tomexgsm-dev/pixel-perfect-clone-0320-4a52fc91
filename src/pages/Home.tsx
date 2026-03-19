@@ -16,7 +16,7 @@ export default function Home() {
     mutationFn: async () => {
       const { data, error } = await supabase
         .from("conversations")
-        .insert({ title: "New Chat", user_id: user?.id })
+        .insert({ title: "New Chat", user_id: user?.id || null })
         .select()
         .single();
       if (error) throw error;
