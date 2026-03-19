@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.generate-template]
 verify_jwt = false
+
+[functions.leaderboard]
+verify_jwt = false
