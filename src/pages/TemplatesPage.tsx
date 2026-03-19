@@ -56,6 +56,8 @@ export default function TemplatesPage() {
   const navigate = useNavigate();
   const [generating, setGenerating] = useState<string | null>(null);
   const [result, setResult] = useState<{ imageUrl: string; chatReply: string; templateName: string } | null>(null);
+  const [editedText, setEditedText] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
 
   // Determine current limits for FOMO
