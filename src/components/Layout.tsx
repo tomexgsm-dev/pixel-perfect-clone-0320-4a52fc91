@@ -284,7 +284,7 @@ export function Layout({ children }: LayoutProps) {
           <div className="font-display font-semibold ml-2 md:hidden text-foreground">Nexus AI</div>
         </header>
 
-        <div className="flex-1 overflow-hidden relative">
+        <div className="flex-1 overflow-y-auto relative">
           {children}
         </div>
       </main>
