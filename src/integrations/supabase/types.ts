@@ -14,7 +14,95 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      conversations: {
+        Row: {
+          app_id: string | null
+          created_at: string
+          id: string
+          system_prompt: string | null
+          title: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          app_id?: string | null
+          created_at?: string
+          id?: string
+          system_prompt?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          app_id?: string | null
+          created_at?: string
+          id?: string
+          system_prompt?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      generated_images: {
+        Row: {
+          created_at: string
+          id: string
+          image_url: string
+          prompt: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_url: string
+          prompt: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_url?: string
+          prompt?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          rating: number | null
+          role: string
+        }
+        Insert: {
+          content?: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          rating?: number | null
+          role: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          rating?: number | null
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
