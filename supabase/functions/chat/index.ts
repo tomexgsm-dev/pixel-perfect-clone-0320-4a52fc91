@@ -30,7 +30,7 @@ serve(async (req) => {
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     const defaultSystem = "You are Nexus AI, an intelligent and helpful assistant. Answer clearly and concisely. Write in the user's language.";
-    const selectedModel = pickRandomModel();
+    const selectedModel = hasImages(messages) ? VISION_MODEL : pickRandomModel();
     console.log("Selected model:", selectedModel);
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
