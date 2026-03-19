@@ -35,6 +35,7 @@ export default function AppsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { t } = useI18n();
+  const { user } = useAuth();
 
   const createMutation = useMutation({
     mutationFn: async (app: AppDef) => {
