@@ -139,6 +139,8 @@ export default function TemplatesPage() {
       if (data?.error) throw new Error(data.error);
 
       setResult({ imageUrl: data.imageUrl, chatReply: data.chatReply, templateName: t.templates.randomTitle });
+      setEditedText(data.chatReply);
+      setIsEditing(false);
 
       if (!isPro) {
         if (user) { decrementChat(); decrementImages(); }
