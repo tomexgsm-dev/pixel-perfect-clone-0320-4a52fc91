@@ -49,6 +49,8 @@ export const en = {
     chatRemaining: "Chat messages left",
     imagesRemaining: "Image generations left",
     comingSoon: "Stripe payment coming soon!",
+    manageBtn: "Manage subscription",
+    checking: "Checking subscription status...",
     limitReached: "Limit reached. Upgrade to PRO for unlimited access.",
   },
   chat: {

@@ -49,6 +49,8 @@ export const pl = {
     chatRemaining: "Pozostałe wiadomości czatu",
     imagesRemaining: "Pozostałe generacje obrazów",
     comingSoon: "Płatności Stripe wkrótce!",
+    manageBtn: "Zarządzaj subskrypcją",
+    checking: "Sprawdzanie statusu subskrypcji...",
     limitReached: "Limit wyczerpany. Przejdź na PRO, aby mieć nielimitowany dostęp.",
   },
   chat: {
