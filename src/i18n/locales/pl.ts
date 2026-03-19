@@ -27,6 +27,9 @@ export const pl = {
     copy: "Kopiuj",
     goodResponse: "Dobra odpowiedź",
     badResponse: "Zła odpowiedź",
+    attach: "Dodaj załącznik",
+    removeAttachment: "Usuń załącznik",
+    attachmentTooLarge: "Plik jest za duży (maks. 10MB)",
   },
   images: {
     title: "Generowanie obrazów AI",
