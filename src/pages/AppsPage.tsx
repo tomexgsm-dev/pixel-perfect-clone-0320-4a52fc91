@@ -7,6 +7,7 @@ import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useI18n } from "@/i18n";
+import { useAuth } from "@/hooks/use-auth";
 
 interface AppDef {
   id: string;
