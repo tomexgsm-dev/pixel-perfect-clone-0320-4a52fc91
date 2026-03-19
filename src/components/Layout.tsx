@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { MessageSquare, Plus, Trash2, Menu, X, Sparkles, Image, LayoutGrid, Crown, LogOut } from "lucide-react";
+import { MessageSquare, Plus, Trash2, Menu, X, Sparkles, Image, LayoutGrid, Crown, LogOut, LogIn } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useI18n, Lang } from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profile";
+import { useFreeLimits } from "@/hooks/use-free-limits";
 
 interface LayoutProps {
   children: ReactNode;
@@ -25,7 +26,8 @@ export function Layout({ children }: LayoutProps) {
   const queryClient = useQueryClient();
   const { t, lang, setLang } = useI18n();
   const { user, signOut } = useAuth();
-  const { profile, isPro } = useProfile();
+  const { isPro } = useProfile();
+  const { chatLeft, imagesLeft, maxChat, maxImages } = useFreeLimits();
 
   const { data: conversations, isLoading } = useQuery({
     queryKey: ["conversations"],
@@ -47,7 +49,7 @@ export function Layout({ children }: LayoutProps) {
           title: opts?.title || "New Chat",
           app_id: opts?.appId,
           system_prompt: opts?.systemPrompt,
-          user_id: user?.id,
+          user_id: user?.id || null,
         })
         .select()
         .single();
@@ -77,12 +79,11 @@ export function Layout({ children }: LayoutProps) {
 
   const handleSignOut = async () => {
     await signOut();
-    navigate("/auth");
+    navigate("/");
   };
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
-      {/* Mobile Overlay */}
       <AnimatePresence>
         {isSidebarOpen && (
           <motion.div
@@ -95,7 +96,6 @@ export function Layout({ children }: LayoutProps) {
         )}
       </AnimatePresence>
 
-      {/* Sidebar */}
       <aside className={cn(
         "fixed md:static inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 ease-in-out md:translate-x-0 shadow-2xl md:shadow-none",
         isSidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -208,27 +208,41 @@ export function Layout({ children }: LayoutProps) {
           )}
         </div>
 
-        {/* User info & logout */}
+        {/* User info */}
         <div className="p-3 border-t border-sidebar-border">
-          <div className="flex items-center gap-3 px-3 py-2">
-            <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-secondary-foreground">
-              {user?.email?.charAt(0).toUpperCase() || "?"}
+          {user ? (
+            <div className="flex items-center gap-3 px-3 py-2">
+              <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-secondary-foreground">
+                {user.email?.charAt(0).toUpperCase() || "?"}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-foreground truncate">{user.email}</p>
+                <p className="text-xs text-muted-foreground">{isPro ? "PRO ∞" : "Free"}</p>
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="p-1.5 rounded-lg hover:bg-destructive/20 hover:text-destructive text-muted-foreground transition-colors"
+                title={t.sidebar.logout}
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-foreground truncate">{user?.email}</p>
-              <p className="text-xs text-muted-foreground">
-                {isPro ? "PRO" : "Free"}
-                {profile && profile.plan === "free" && ` · ${profile.free_chat_left}/${profile.free_images_left}`}
-              </p>
+          ) : (
+            <div className="flex items-center gap-3 px-3 py-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground">
+                  💬 {chatLeft}/{maxChat} · 🖼 {imagesLeft}/{maxImages}
+                </p>
+              </div>
+              <Link
+                to="/auth"
+                className="flex items-center gap-1 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:scale-105 transition-transform"
+              >
+                <LogIn className="w-3 h-3" />
+                PRO
+              </Link>
             </div>
-            <button
-              onClick={handleSignOut}
-              className="p-1.5 rounded-lg hover:bg-destructive/20 hover:text-destructive text-muted-foreground transition-colors"
-              title={t.sidebar.logout}
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
+          )}
         </div>
 
         <div className="px-4 pb-3 text-xs text-muted-foreground flex items-center justify-between">
@@ -250,7 +264,6 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </aside>
 
-      {/* Main */}
       <main className="flex-1 flex flex-col min-w-0 relative">
         <header className="h-14 flex items-center px-4 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-10">
           <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-muted-foreground hover:text-foreground rounded-lg md:hidden">

@@ -5,7 +5,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Layout } from "@/components/Layout";
 import { ChatMessage } from "@/components/ChatMessage";
 import { useChatStream, type Message } from "@/hooks/use-chat-stream";
+import { useAuth } from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profile";
+import { useFreeLimits } from "@/hooks/use-free-limits";
 import { Send, Loader2, Paperclip, X, FileText, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n";
@@ -16,16 +18,18 @@ export default function ChatPage() {
   const { id: conversationId } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const { t } = useI18n();
-  const { canChat, decrementChat, profile } = useProfile();
+  const { user } = useAuth();
+  const { isPro } = useProfile();
+  const freeLimits = useFreeLimits();
+
+  // PRO users = unlimited, anonymous users = localStorage limits
+  const canChat = user && isPro ? true : freeLimits.canChat;
 
   const { data: conversation } = useQuery({
     queryKey: ["conversation", conversationId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("conversations")
-        .select("*")
-        .eq("id", conversationId!)
-        .single();
+        .from("conversations").select("*").eq("id", conversationId!).single();
       if (error) throw error;
       return data;
     },
@@ -36,10 +40,7 @@ export default function ChatPage() {
     queryKey: ["messages", conversationId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("conversation_id", conversationId!)
-        .order("created_at", { ascending: true });
+        .from("messages").select("*").eq("conversation_id", conversationId!).order("created_at", { ascending: true });
       if (error) throw error;
       return data;
     },
@@ -75,22 +76,10 @@ export default function ChatPage() {
     queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
   }, [conversationId, queryClient]);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) processFile(file);
-  };
-
   const processFile = (file: File) => {
-    if (file.size > MAX_FILE_SIZE) {
-      alert(t.chat.attachmentTooLarge);
-      return;
-    }
+    if (file.size > MAX_FILE_SIZE) { alert(t.chat.attachmentTooLarge); return; }
     setAttachment(file);
-    if (file.type.startsWith("image/")) {
-      setAttachmentPreview(URL.createObjectURL(file));
-    } else {
-      setAttachmentPreview(null);
-    }
+    setAttachmentPreview(file.type.startsWith("image/") ? URL.createObjectURL(file) : null);
   };
 
   const handleDragEnter = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); dragCounterRef.current++; if (e.dataTransfer.types.includes("Files")) setIsDragging(true); };
@@ -132,7 +121,8 @@ export default function ChatPage() {
 
     const ok = await sendMessage(content || "📎 " + (attachmentData?.name || "attachment"), messages, conversation?.system_prompt, attachmentData);
     if (ok) {
-      decrementChat();
+      // Decrement free limits only for non-PRO users
+      if (!(user && isPro)) freeLimits.decrementChat();
       queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
     }
   };
@@ -196,14 +186,13 @@ export default function ChatPage() {
             <div ref={messagesEndRef} className="h-4" />
           </div>
 
-          {/* Input */}
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background to-transparent pt-6 pb-4 px-4 md:px-8">
             <div className="max-w-3xl mx-auto relative">
               {!canChat && (
                 <div className="mb-2 px-4 py-3 text-sm bg-card border border-border rounded-xl flex items-center justify-between">
                   <span className="text-muted-foreground">{t.pricing.limitReached}</span>
-                  <Link to="/pricing" className="flex items-center gap-1 text-primary font-medium text-sm hover:underline">
-                    <Crown className="w-4 h-4" /> PRO
+                  <Link to={user ? "/pricing" : "/auth"} className="flex items-center gap-1 text-primary font-medium text-sm hover:underline">
+                    <Crown className="w-4 h-4" /> {user ? "PRO" : t.auth.signupLink}
                   </Link>
                 </div>
               )}
@@ -227,14 +216,14 @@ export default function ChatPage() {
                     <p className="text-sm font-medium truncate">{attachment.name}</p>
                     <p className="text-xs text-muted-foreground">{(attachment.size / 1024).toFixed(1)} KB</p>
                   </div>
-                  <button onClick={removeAttachment} className="p-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors" title={t.chat.removeAttachment}>
+                  <button onClick={removeAttachment} className="p-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
               )}
 
               <form onSubmit={handleSubmit} className="relative">
-                <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.txt,.md,.csv,.json,.doc,.docx" onChange={handleFileSelect} />
+                <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.txt,.md,.csv,.json,.doc,.docx" onChange={(e) => { const f = e.target.files?.[0]; if (f) processFile(f); }} />
                 <textarea
                   ref={textareaRef}
                   value={input}
@@ -250,7 +239,6 @@ export default function ChatPage() {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isStreaming || uploading || !canChat}
                   className="absolute left-2 bottom-2 p-2.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                  title={t.chat.attach}
                 >
                   <Paperclip className="w-4 h-4" />
                 </button>
@@ -268,9 +256,7 @@ export default function ChatPage() {
                 </button>
               </form>
 
-              <p className="text-center text-xs text-muted-foreground/50 mt-2">
-                {t.chat.disclaimer}
-              </p>
+              <p className="text-center text-xs text-muted-foreground/50 mt-2">{t.chat.disclaimer}</p>
             </div>
           </div>
         </div>

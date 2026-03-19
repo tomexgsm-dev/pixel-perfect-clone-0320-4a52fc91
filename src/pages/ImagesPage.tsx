@@ -6,8 +6,9 @@ import { Loader2, Download, Trash2, Image as ImageIcon, Crown } from "lucide-rea
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n";
 import { toast } from "sonner";
-import { useProfile } from "@/hooks/use-profile";
 import { useAuth } from "@/hooks/use-auth";
+import { useProfile } from "@/hooks/use-profile";
+import { useFreeLimits } from "@/hooks/use-free-limits";
 import { Link } from "react-router-dom";
 
 const QUICK_STYLES = [
@@ -24,8 +25,11 @@ export default function ImagesPage() {
   const [generating, setGenerating] = useState(false);
   const queryClient = useQueryClient();
   const { t } = useI18n();
-  const { canGenerateImage, decrementImages } = useProfile();
   const { user } = useAuth();
+  const { isPro } = useProfile();
+  const freeLimits = useFreeLimits();
+
+  const canGenerateImage = user && isPro ? true : freeLimits.canGenerateImage;
 
   const { data: images, isLoading } = useQuery({
     queryKey: ["generated-images"],
@@ -76,10 +80,10 @@ export default function ImagesPage() {
       await supabase.from("generated_images").insert({
         prompt: p,
         image_url: data.imageUrl,
-        user_id: user?.id,
+        user_id: user?.id || null,
       });
 
-      decrementImages();
+      if (!(user && isPro)) freeLimits.decrementImages();
       queryClient.invalidateQueries({ queryKey: ["generated-images"] });
       setPrompt("");
       toast.success("Image generated!");
@@ -102,8 +106,8 @@ export default function ImagesPage() {
           {!canGenerateImage && (
             <div className="mb-4 px-4 py-3 bg-card border border-border rounded-xl flex items-center justify-between">
               <span className="text-sm text-muted-foreground">{t.pricing.limitReached}</span>
-              <Link to="/pricing" className="flex items-center gap-1 text-primary font-medium text-sm hover:underline">
-                <Crown className="w-4 h-4" /> PRO
+              <Link to={user ? "/pricing" : "/auth"} className="flex items-center gap-1 text-primary font-medium text-sm hover:underline">
+                <Crown className="w-4 h-4" /> {user ? "PRO" : t.auth.signupLink}
               </Link>
             </div>
           )}
