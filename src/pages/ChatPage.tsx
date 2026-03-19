@@ -191,7 +191,22 @@ export default function ChatPage() {
           <Loader2 className="w-8 h-8 animate-spin" />
         </div>
       ) : (
-        <div className="flex flex-col h-full absolute inset-0">
+        <div
+          className="flex flex-col h-full absolute inset-0 relative"
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {/* Drop overlay */}
+          {isDragging && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm border-2 border-dashed border-primary rounded-2xl m-4 pointer-events-none">
+              <div className="flex flex-col items-center gap-2 text-primary">
+                <Paperclip className="w-10 h-10" />
+                <p className="text-lg font-semibold">{t.chat.dropFile}</p>
+              </div>
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto pb-32">
             {messages.length === 0 && !streamingMessage && (
               <div className="h-full flex flex-col items-center justify-center text-center p-8 max-w-md mx-auto">
