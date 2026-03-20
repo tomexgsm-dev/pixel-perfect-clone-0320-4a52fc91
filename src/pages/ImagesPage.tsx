@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Layout } from "@/components/Layout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Download, Trash2, Image as ImageIcon, Crown } from "lucide-react";
+import { Loader2, Download, Trash2, Image as ImageIcon, Crown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n";
 import { toast } from "sonner";
