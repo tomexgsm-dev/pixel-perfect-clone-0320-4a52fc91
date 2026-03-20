@@ -242,6 +242,7 @@ export default function ChatPage() {
                   value={input}
                   onChange={(e) => { setInput(e.target.value); autoResize(e); }}
                   onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
                   placeholder={canChat ? t.chat.placeholder : t.pricing.limitReached}
                   rows={1}
                   disabled={!canChat}

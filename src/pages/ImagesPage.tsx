@@ -137,10 +137,20 @@ export default function ImagesPage() {
           )}
 
           <div className="space-y-3 mb-8">
+            {pastedImage && (
+              <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2">
+                <img src={pastedImage.preview} alt="Pasted" className="w-12 h-12 rounded-lg object-cover" />
+                <p className="text-sm text-muted-foreground flex-1 truncate">{pastedImage.file.name || "Screenshot"}</p>
+                <button onClick={removePastedImage} className="p-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
             <div className="flex gap-2">
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
+                onPaste={handlePaste}
                 placeholder={t.images.promptPlaceholder}
                 rows={2}
                 disabled={!canGenerateImage}
