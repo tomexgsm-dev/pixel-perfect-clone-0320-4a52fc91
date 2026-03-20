@@ -1,6 +1,8 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { Bot, User, Copy, Check, ThumbsUp, ThumbsDown, FileText, Download } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -89,9 +91,46 @@ export function ChatMessage({ message, isStreaming, onRate }: ChatMessageProps) 
             "prose",
             isStreaming && !isUser && "after:content-[''] after:inline-block after:w-1.5 after:h-4 after:bg-primary after:ml-1 after:animate-pulse"
           )}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {message.content || (isStreaming ? "" : "...")}
-            </ReactMarkdown>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                code({ node, className, children, ...props }) {
+                  const match = /language-(\w+)/.exec(className || "");
+                  const codeString = String(children).replace(/\n$/, "");
+                  if (match) {
+                    return (
+                      <div className="relative group/code my-3">
+                        <div className="flex items-center justify-between bg-[#1e1e1e] rounded-t-lg px-4 py-2 text-xs text-muted-foreground border-b border-white/10">
+                          <span>{match[1]}</span>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(codeString);
+                            }}
+                            className="flex items-center gap-1 hover:text-foreground transition-colors"
+                          >
+                            <Copy className="w-3 h-3" /> Kopiuj
+                          </button>
+                        </div>
+                        <SyntaxHighlighter
+                          style={oneDark}
+                          language={match[1]}
+                          PreTag="div"
+                          customStyle={{ margin: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0, borderBottomLeftRadius: '0.5rem', borderBottomRightRadius: '0.5rem' }}
+                        >
+                          {codeString}
+                        </SyntaxHighlighter>
+                      </div>
+                    );
+                  }
+                  return (
+                    <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+                      {children}
+                    </code>
+                  );
+                },
+              }}
+            >
+              {message.content || (isStreaming ? "" : "...")}</ReactMarkdown>
           </div>
 
           {!isUser && !isStreaming && message.content && (
