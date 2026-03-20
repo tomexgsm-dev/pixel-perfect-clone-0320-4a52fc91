@@ -23,6 +23,30 @@ const QUICK_STYLES = [
 export default function ImagesPage() {
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [pastedImage, setPastedImage] = useState<{ file: File; preview: string } | null>(null);
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) {
+          setPastedImage({ file, preview: URL.createObjectURL(file) });
+          if (!prompt.trim()) setPrompt("Pasted screenshot");
+        }
+        return;
+      }
+    }
+  };
+
+  const removePastedImage = () => {
+    if (pastedImage) {
+      URL.revokeObjectURL(pastedImage.preview);
+      setPastedImage(null);
+    }
+  };
   const queryClient = useQueryClient();
   const { t } = useI18n();
   const { user } = useAuth();
