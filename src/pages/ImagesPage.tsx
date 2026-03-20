@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Layout } from "@/components/Layout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Download, Trash2, Image as ImageIcon, Crown } from "lucide-react";
+import { Loader2, Download, Trash2, Image as ImageIcon, Crown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n";
 import { toast } from "sonner";
@@ -23,6 +23,30 @@ const QUICK_STYLES = [
 export default function ImagesPage() {
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [pastedImage, setPastedImage] = useState<{ file: File; preview: string } | null>(null);
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) {
+          setPastedImage({ file, preview: URL.createObjectURL(file) });
+          if (!prompt.trim()) setPrompt("Pasted screenshot");
+        }
+        return;
+      }
+    }
+  };
+
+  const removePastedImage = () => {
+    if (pastedImage) {
+      URL.revokeObjectURL(pastedImage.preview);
+      setPastedImage(null);
+    }
+  };
   const queryClient = useQueryClient();
   const { t } = useI18n();
   const { user } = useAuth();
@@ -113,10 +137,20 @@ export default function ImagesPage() {
           )}
 
           <div className="space-y-3 mb-8">
+            {pastedImage && (
+              <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2">
+                <img src={pastedImage.preview} alt="Pasted" className="w-12 h-12 rounded-lg object-cover" />
+                <p className="text-sm text-muted-foreground flex-1 truncate">{pastedImage.file.name || "Screenshot"}</p>
+                <button onClick={removePastedImage} className="p-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
             <div className="flex gap-2">
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
+                onPaste={handlePaste}
                 placeholder={t.images.promptPlaceholder}
                 rows={2}
                 disabled={!canGenerateImage}
