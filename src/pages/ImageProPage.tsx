@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Layout } from "@/components/Layout";
-import { Loader2, Wand2, ShoppingBag, ArrowUpCircle, Palette, Sparkles, Download } from "lucide-react";
+import { Loader2, Wand2, ShoppingBag, ArrowUpCircle, Palette, Sparkles, Download, Upload, X, Link as LinkIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const ACTIONS = [
   { key: "generate", icon: Wand2, needsPrompt: true, needsImage: false },
@@ -25,16 +26,63 @@ export default function ImageProPage() {
   const [selectedAction, setSelectedAction] = useState<string>("generate");
   const [prompt, setPrompt] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [uploadedFile, setUploadedFile] = useState<{ file: File; preview: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [useUrlMode, setUseUrlMode] = useState(false);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { lang } = useI18n();
 
   const action = ACTIONS.find((a) => a.key === selectedAction)!;
   const labels = ACTION_LABELS[selectedAction];
 
+  const handleFileSelect = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error(lang === "pl" ? "Wybierz plik obrazu" : "Select an image file");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error(lang === "pl" ? "Maks. 10MB" : "Max 10MB");
+      return;
+    }
+    setUploadedFile({ file, preview: URL.createObjectURL(file) });
+
+    // Upload to storage
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop() || "png";
+      const path = `image-pro/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from("chat-attachments").upload(path, file);
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from("chat-attachments").getPublicUrl(path);
+      setImageUrl(urlData.publicUrl);
+    } catch {
+      toast.error(lang === "pl" ? "Błąd uploadu" : "Upload failed");
+      removeFile();
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeFile = () => {
+    if (uploadedFile) URL.revokeObjectURL(uploadedFile.preview);
+    setUploadedFile(null);
+    setImageUrl("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileSelect(file);
+  };
+
+  const hasImage = !!imageUrl.trim();
+
   const handleSubmit = async () => {
     if (action.needsPrompt && !prompt.trim()) return;
-    if (action.needsImage && !imageUrl.trim()) return;
+    if (action.needsImage && !hasImage) return;
 
     setLoading(true);
     setResultImage(null);
@@ -124,18 +172,76 @@ export default function ImageProPage() {
             )}
 
             {action.needsImage && (
-              <input
-                type="text"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder={lang === "pl" ? "Wklej URL obrazu..." : "Paste image URL..."}
-                className="w-full bg-card border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
+              <div className="space-y-2">
+                {/* Toggle between upload and URL */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => { setUseUrlMode(false); removeFile(); }}
+                    className={cn("text-xs px-3 py-1 rounded-lg transition-colors", !useUrlMode ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground")}
+                  >
+                    <Upload className="w-3 h-3 inline mr-1" />
+                    {lang === "pl" ? "Upload" : "Upload"}
+                  </button>
+                  <button
+                    onClick={() => { setUseUrlMode(true); removeFile(); }}
+                    className={cn("text-xs px-3 py-1 rounded-lg transition-colors", useUrlMode ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground")}
+                  >
+                    <LinkIcon className="w-3 h-3 inline mr-1" />
+                    URL
+                  </button>
+                </div>
+
+                {useUrlMode ? (
+                  <input
+                    type="text"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder={lang === "pl" ? "Wklej URL obrazu..." : "Paste image URL..."}
+                    className="w-full bg-card border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                ) : (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); }}
+                    />
+                    {uploadedFile ? (
+                      <div className="flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3">
+                        <img src={uploadedFile.preview} alt="Preview" className="w-14 h-14 rounded-lg object-cover" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-foreground truncate">{uploadedFile.file.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {uploading ? (lang === "pl" ? "Przesyłanie..." : "Uploading...") : (lang === "pl" ? "Gotowe" : "Ready")}
+                          </p>
+                        </div>
+                        <button onClick={removeFile} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={handleDrop}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex flex-col items-center justify-center gap-2 bg-card border-2 border-dashed border-border rounded-xl px-4 py-8 cursor-pointer hover:border-primary/50 transition-colors"
+                      >
+                        <Upload className="w-8 h-8 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">
+                          {lang === "pl" ? "Kliknij lub przeciągnij obraz" : "Click or drag an image"}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             )}
 
             <button
               onClick={handleSubmit}
-              disabled={loading || (action.needsPrompt && !prompt.trim()) || (action.needsImage && !imageUrl.trim())}
+              disabled={loading || uploading || (action.needsPrompt && !prompt.trim()) || (action.needsImage && !hasImage)}
               className={cn(
                 "px-6 py-3 rounded-xl font-medium text-sm transition-all",
                 !loading ? "bg-primary text-primary-foreground hover:scale-105 shadow-glow" : "bg-secondary text-muted-foreground"
