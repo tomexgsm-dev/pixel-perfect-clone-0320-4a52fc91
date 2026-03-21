@@ -8,7 +8,7 @@ interface VoiceInputProps {
   disabled?: boolean;
 }
 
-export function VoiceInput({ onText, disabled }: VoiceInputProps) {
+export function VoiceInput({ onText, onSubmit, disabled }: VoiceInputProps) {
   const [listening, setListening] = useState(false);
 
   const startListening = () => {
