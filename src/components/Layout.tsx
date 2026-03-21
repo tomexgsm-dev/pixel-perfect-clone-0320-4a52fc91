@@ -134,6 +134,18 @@ export function Layout({ children }: LayoutProps) {
             {t.sidebar.images}
           </Link>
           <Link
+            to="/image-pro"
+            className={cn(
+              "w-full flex items-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all border",
+              location.pathname === "/image-pro"
+                ? "bg-sidebar-accent text-sidebar-accent-foreground border-border/50"
+                : "text-sidebar-foreground hover:bg-sidebar-accent/50 border-transparent"
+            )}
+          >
+            <Wand2 className="w-4 h-4" />
+            Image Pro
+          </Link>
+          <Link
             to="/apps"
             className={cn(
               "w-full flex items-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all border",

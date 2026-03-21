@@ -56,6 +56,7 @@ const App = () => (
               <Route path="/c/:id" element={<ChatPage />} />
               <Route path="/apps" element={<AppsPage />} />
               <Route path="/images" element={<ImagesPage />} />
+              <Route path="/image-pro" element={<ImageProPage />} />
               <Route path="/pricing" element={<PricingPage />} />
               <Route path="/templates" element={<TemplatesPage />} />
               <Route path="*" element={<NotFound />} />
