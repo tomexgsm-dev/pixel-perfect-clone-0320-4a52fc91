@@ -274,6 +274,7 @@ export default function ChatPage() {
                     onSubmit={sendVoiceMessage}
                     disabled={isStreaming || uploading || !canChat}
                   />
+                  <SpeechSettingsPopover />
                 </div>
                 <button
                   type="submit"
