@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 interface VoiceInputProps {
   onText: (text: string) => void;
+  onSubmit?: (text: string) => void;
   disabled?: boolean;
 }
 
