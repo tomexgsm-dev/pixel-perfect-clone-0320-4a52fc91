@@ -65,6 +65,11 @@ export function SpeechSettingsPopover() {
           />
         </div>
 
+        <div className="flex items-center justify-between">
+          <label className="text-xs text-muted-foreground">Auto-czytanie odpowiedzi</label>
+          <Switch checked={autoRead} onCheckedChange={setAutoRead} />
+        </div>
+
         <button
           onClick={testVoice}
           className="w-full text-xs py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
