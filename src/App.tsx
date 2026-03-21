@@ -61,6 +61,7 @@ const App = () => (
             </Routes>
           </BrowserRouter>
         </TooltipProvider>
+        </SpeechSettingsProvider>
         </FreeLimitsProvider>
       </AuthProvider>
     </I18nProvider>

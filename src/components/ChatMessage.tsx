@@ -52,7 +52,9 @@ export function ChatMessage({ message, isStreaming, onRate }: ChatMessageProps) 
 
     const utterance = new SpeechSynthesisUtterance(plainText);
     utterance.lang = "pl-PL";
-    utterance.rate = 1;
+    utterance.rate = speechSettings.rate;
+    const voice = speechSettings.voices.find((v) => v.voiceURI === speechSettings.voiceURI);
+    if (voice) utterance.voice = voice;
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
     setSpeaking(true);
