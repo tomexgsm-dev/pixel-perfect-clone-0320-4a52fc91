@@ -45,6 +45,7 @@ const App = () => (
     <I18nProvider>
       <AuthProvider>
         <FreeLimitsProvider>
+        <SpeechSettingsProvider>
         <TooltipProvider>
           <Sonner />
           <BrowserRouter>
