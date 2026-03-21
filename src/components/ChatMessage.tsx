@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n";
 import type { Message } from "@/hooks/use-chat-stream";
+import { useSpeechSettings } from "@/hooks/use-speech-settings";
 
 interface ChatMessageProps {
   message: Message;
@@ -19,6 +20,7 @@ export function ChatMessage({ message, isStreaming, onRate }: ChatMessageProps) 
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const speechSettings = useSpeechSettings();
   const { t } = useI18n();
 
   const handleCopy = () => {
@@ -50,7 +52,9 @@ export function ChatMessage({ message, isStreaming, onRate }: ChatMessageProps) 
 
     const utterance = new SpeechSynthesisUtterance(plainText);
     utterance.lang = "pl-PL";
-    utterance.rate = 1;
+    utterance.rate = speechSettings.rate;
+    const voice = speechSettings.voices.find((v) => v.voiceURI === speechSettings.voiceURI);
+    if (voice) utterance.voice = voice;
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
     setSpeaking(true);
