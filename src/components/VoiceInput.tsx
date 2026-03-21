@@ -30,6 +30,7 @@ export function VoiceInput({ onText, onSubmit, disabled }: VoiceInputProps) {
       const text = event.results[0][0].transcript;
       onText(text);
       setListening(false);
+      if (onSubmit) onSubmit(text);
     };
 
     recognition.onerror = () => setListening(false);
