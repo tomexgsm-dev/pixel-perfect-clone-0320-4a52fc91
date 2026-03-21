@@ -10,6 +10,7 @@ import { useProfile } from "@/hooks/use-profile";
 import { useFreeLimits } from "@/hooks/use-free-limits";
 import { Send, Loader2, Paperclip, X, FileText, Crown } from "lucide-react";
 import { VoiceInput } from "@/components/VoiceInput";
+import { SpeechSettingsPopover } from "@/components/SpeechSettingsPopover";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n";
 
