@@ -13,6 +13,7 @@ import { VoiceInput } from "@/components/VoiceInput";
 import { SpeechSettingsPopover } from "@/components/SpeechSettingsPopover";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n";
+import { useSpeechSettings } from "@/hooks/use-speech-settings";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
