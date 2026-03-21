@@ -37,8 +37,8 @@ export function SpeechSettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ voiceURI, rate }));
-  }, [voiceURI, rate]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ voiceURI, rate, autoRead }));
+  }, [voiceURI, rate, autoRead]);
 
   return (
     <SpeechSettingsContext.Provider value={{ voiceURI, rate, setVoiceURI, setRate, voices }}>
