@@ -12,6 +12,7 @@ import AppsPage from "./pages/AppsPage";
 import ImagesPage from "./pages/ImagesPage";
 import PricingPage from "./pages/PricingPage";
 import TemplatesPage from "./pages/TemplatesPage";
+import ImageProPage from "./pages/ImageProPage";
 import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
