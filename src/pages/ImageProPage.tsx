@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Layout } from "@/components/Layout";
-import { Loader2, Wand2, ShoppingBag, ArrowUpCircle, Palette, Sparkles, Download } from "lucide-react";
+import { Loader2, Wand2, ShoppingBag, ArrowUpCircle, Palette, Sparkles, Download, Upload, X, Link as LinkIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const ACTIONS = [
   { key: "generate", icon: Wand2, needsPrompt: true, needsImage: false },
