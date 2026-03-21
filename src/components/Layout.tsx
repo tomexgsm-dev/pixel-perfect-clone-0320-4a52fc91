@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { MessageSquare, Plus, Trash2, Menu, X, Sparkles, Image, LayoutGrid, Crown, LogOut, LogIn, Layers } from "lucide-react";
+import { MessageSquare, Plus, Trash2, Menu, X, Sparkles, Image, LayoutGrid, Crown, LogOut, LogIn, Layers, Wand2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
