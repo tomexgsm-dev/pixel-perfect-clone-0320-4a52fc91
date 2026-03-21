@@ -2,6 +2,7 @@ import { useSpeechSettings } from "@/hooks/use-speech-settings";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Settings2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 
 export function SpeechSettingsPopover() {
   const { voices, voiceURI, setVoiceURI, rate, setRate } = useSpeechSettings();
