@@ -2,9 +2,10 @@ import { useSpeechSettings } from "@/hooks/use-speech-settings";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Settings2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 
 export function SpeechSettingsPopover() {
-  const { voices, voiceURI, setVoiceURI, rate, setRate } = useSpeechSettings();
+  const { voices, voiceURI, setVoiceURI, rate, setRate, autoRead, setAutoRead } = useSpeechSettings();
 
   const polishVoices = voices.filter((v) => v.lang.startsWith("pl"));
   const allVoices = polishVoices.length > 0 ? polishVoices : voices;
@@ -62,6 +63,11 @@ export function SpeechSettingsPopover() {
             step={0.1}
             className="w-full"
           />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <label className="text-xs text-muted-foreground">Auto-czytanie odpowiedzi</label>
+          <Switch checked={autoRead} onCheckedChange={setAutoRead} />
         </div>
 
         <button

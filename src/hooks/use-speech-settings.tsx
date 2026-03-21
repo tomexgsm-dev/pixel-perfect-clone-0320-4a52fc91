@@ -3,8 +3,10 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from "
 interface SpeechSettings {
   voiceURI: string;
   rate: number;
+  autoRead: boolean;
   setVoiceURI: (uri: string) => void;
   setRate: (rate: number) => void;
+  setAutoRead: (v: boolean) => void;
   voices: SpeechSynthesisVoice[];
 }
 
@@ -20,6 +22,9 @@ export function SpeechSettingsProvider({ children }: { children: ReactNode }) {
   const [rate, setRate] = useState(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}").rate || 1; } catch { return 1; }
   });
+  const [autoRead, setAutoRead] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}").autoRead || false; } catch { return false; }
+  });
 
   useEffect(() => {
     const load = () => {
@@ -32,11 +37,11 @@ export function SpeechSettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ voiceURI, rate }));
-  }, [voiceURI, rate]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ voiceURI, rate, autoRead }));
+  }, [voiceURI, rate, autoRead]);
 
   return (
-    <SpeechSettingsContext.Provider value={{ voiceURI, rate, setVoiceURI, setRate, voices }}>
+    <SpeechSettingsContext.Provider value={{ voiceURI, rate, autoRead, setVoiceURI, setRate, setAutoRead, voices }}>
       {children}
     </SpeechSettingsContext.Provider>
   );
