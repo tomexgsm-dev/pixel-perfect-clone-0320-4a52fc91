@@ -24,6 +24,8 @@ export default function ChatPage() {
   const { user } = useAuth();
   const { isPro } = useProfile();
   const freeLimits = useFreeLimits();
+  const speechSettings = useSpeechSettings();
+  const prevMessageCountRef = useRef(0);
 
   // PRO users = unlimited, anonymous users = localStorage limits
   const canChat = user && isPro ? true : freeLimits.canChat;
