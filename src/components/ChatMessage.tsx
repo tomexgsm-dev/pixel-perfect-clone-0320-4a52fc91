@@ -18,6 +18,7 @@ interface ChatMessageProps {
 export function ChatMessage({ message, isStreaming, onRate }: ChatMessageProps) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const { t } = useI18n();
 
   const handleCopy = () => {
