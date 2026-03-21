@@ -26,16 +26,63 @@ export default function ImageProPage() {
   const [selectedAction, setSelectedAction] = useState<string>("generate");
   const [prompt, setPrompt] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [uploadedFile, setUploadedFile] = useState<{ file: File; preview: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [useUrlMode, setUseUrlMode] = useState(false);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { lang } = useI18n();
 
   const action = ACTIONS.find((a) => a.key === selectedAction)!;
   const labels = ACTION_LABELS[selectedAction];
 
+  const handleFileSelect = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error(lang === "pl" ? "Wybierz plik obrazu" : "Select an image file");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error(lang === "pl" ? "Maks. 10MB" : "Max 10MB");
+      return;
+    }
+    setUploadedFile({ file, preview: URL.createObjectURL(file) });
+
+    // Upload to storage
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop() || "png";
+      const path = `image-pro/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from("chat-attachments").upload(path, file);
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from("chat-attachments").getPublicUrl(path);
+      setImageUrl(urlData.publicUrl);
+    } catch {
+      toast.error(lang === "pl" ? "Błąd uploadu" : "Upload failed");
+      removeFile();
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeFile = () => {
+    if (uploadedFile) URL.revokeObjectURL(uploadedFile.preview);
+    setUploadedFile(null);
+    setImageUrl("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileSelect(file);
+  };
+
+  const hasImage = !!imageUrl.trim();
+
   const handleSubmit = async () => {
     if (action.needsPrompt && !prompt.trim()) return;
-    if (action.needsImage && !imageUrl.trim()) return;
+    if (action.needsImage && !hasImage) return;
 
     setLoading(true);
     setResultImage(null);
