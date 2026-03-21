@@ -113,7 +113,7 @@ export default function ChatPage() {
     }
   }, [isStreaming, conversationId, canChat, messages, conversation?.system_prompt, sendMessage, user, isPro, freeLimits, queryClient]);
 
-
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!input.trim() && !attachment) || isStreaming || !conversationId || !canChat) return;
 
