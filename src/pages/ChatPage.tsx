@@ -247,7 +247,7 @@ export default function ChatPage() {
                   placeholder={canChat ? t.chat.placeholder : t.pricing.limitReached}
                   rows={1}
                   disabled={!canChat}
-                  className="w-full resize-none bg-card border border-border rounded-2xl pl-12 pr-14 py-3.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 shadow-lg disabled:opacity-50"
+                  className="w-full resize-none bg-card border border-border rounded-2xl pl-[5.5rem] pr-14 py-3.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 shadow-lg disabled:opacity-50"
                 />
                 <div className="absolute left-2 bottom-2 flex items-center gap-0.5">
                   <button
