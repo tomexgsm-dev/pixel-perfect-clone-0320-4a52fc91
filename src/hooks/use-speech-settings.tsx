@@ -41,7 +41,7 @@ export function SpeechSettingsProvider({ children }: { children: ReactNode }) {
   }, [voiceURI, rate, autoRead]);
 
   return (
-    <SpeechSettingsContext.Provider value={{ voiceURI, rate, setVoiceURI, setRate, voices }}>
+    <SpeechSettingsContext.Provider value={{ voiceURI, rate, autoRead, setVoiceURI, setRate, setAutoRead, voices }}>
       {children}
     </SpeechSettingsContext.Provider>
   );
