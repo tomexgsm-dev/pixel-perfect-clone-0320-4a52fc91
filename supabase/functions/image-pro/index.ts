@@ -5,13 +5,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const STABLE_DIFFUSION_VERSION = "db21e45d3b7d6765c6015396fe55718f15cc0cfe654bfcbe05e3b80ab3c5764b";
-const REAL_ESRGAN_VERSION = "42fed1c4974146d4d2414e2be2c5277c7fcf05fcc3a73abf41610695738c1d7b";
-
 async function waitForResult(url: string, apiKey: string): Promise<any> {
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 120; i++) {
     const res = await fetch(url, {
-      headers: { Authorization: `Token ${apiKey}` },
+      headers: { Authorization: `Bearer ${apiKey}` },
     });
     const result = await res.json();
     if (result.status === "succeeded") return result.output;
@@ -23,20 +20,34 @@ async function waitForResult(url: string, apiKey: string): Promise<any> {
   throw new Error("Timeout waiting for result");
 }
 
-async function createPrediction(apiKey: string, version: string, input: Record<string, any>) {
-  const response = await fetch("https://api.replicate.com/v1/predictions", {
+async function runModel(apiKey: string, model: string, input: Record<string, any>) {
+  const response = await fetch(`https://api.replicate.com/v1/models/${model}/predictions`, {
     method: "POST",
     headers: {
-      Authorization: `Token ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      Prefer: "wait",
     },
-    body: JSON.stringify({ version, input }),
+    body: JSON.stringify({ input }),
   });
+
   if (!response.ok) {
     const t = await response.text();
     throw new Error(`Replicate API error: ${response.status} ${t}`);
   }
-  return response.json();
+
+  const data = await response.json();
+
+  // If "Prefer: wait" returned a completed prediction
+  if (data.status === "succeeded") return data.output;
+  if (data.status === "failed") throw new Error(data.error || "AI processing failed");
+
+  // Otherwise poll
+  if (data.urls?.get) {
+    return await waitForResult(data.urls.get, apiKey);
+  }
+
+  return data.output;
 }
 
 serve(async (req) => {
@@ -53,50 +64,39 @@ serve(async (req) => {
     switch (action) {
       case "generate": {
         if (!prompt) throw new Error("Prompt is required");
-        const data = await createPrediction(REPLICATE_API, STABLE_DIFFUSION_VERSION, { prompt });
-        output = await waitForResult(data.urls.get, REPLICATE_API);
+        output = await runModel(REPLICATE_API, "stability-ai/sdxl", { prompt, width: 1024, height: 1024 });
         break;
       }
 
       case "product": {
         if (!prompt) throw new Error("Prompt is required");
         const fullPrompt = `Realistic photo: person holding product ${prompt}. Marketing style, high quality, studio light, advertisement.`;
-        const data = await createPrediction(REPLICATE_API, STABLE_DIFFUSION_VERSION, { prompt: fullPrompt });
-        output = await waitForResult(data.urls.get, REPLICATE_API);
+        output = await runModel(REPLICATE_API, "stability-ai/sdxl", { prompt: fullPrompt, width: 1024, height: 1024 });
         break;
       }
 
       case "upscale": {
         if (!image) throw new Error("Image URL is required");
-        const data = await createPrediction(REPLICATE_API, REAL_ESRGAN_VERSION, { image });
-        output = await waitForResult(data.urls.get, REPLICATE_API);
+        output = await runModel(REPLICATE_API, "nightmareai/real-esrgan", { image, scale: 4 });
         break;
       }
 
       case "coloring": {
         if (!image) throw new Error("Image URL is required");
         const colorPrompt = "Convert to clean line art coloring book page, black outlines on white background, no shading";
-        const data = await createPrediction(REPLICATE_API, STABLE_DIFFUSION_VERSION, {
-          prompt: colorPrompt,
-          image,
-        });
-        output = await waitForResult(data.urls.get, REPLICATE_API);
+        output = await runModel(REPLICATE_API, "stability-ai/sdxl", { prompt: colorPrompt, image });
         break;
       }
 
       case "enhance": {
         if (!image) throw new Error("Image URL is required");
         const enhancePrompt = "Enhance photo quality, increase sharpness, improve colors, HD quality, realistic";
-        const data = await createPrediction(REPLICATE_API, STABLE_DIFFUSION_VERSION, {
-          prompt: enhancePrompt,
-          image,
-        });
-        output = await waitForResult(data.urls.get, REPLICATE_API);
+        output = await runModel(REPLICATE_API, "stability-ai/sdxl", { prompt: enhancePrompt, image });
         break;
       }
 
       default:
-        return new Response(JSON.stringify({ error: "Invalid action. Use: generate, product, upscale, coloring, enhance" }), {
+        return new Response(JSON.stringify({ error: "Invalid action" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
