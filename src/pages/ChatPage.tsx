@@ -269,7 +269,8 @@ export default function ChatPage() {
                     <Paperclip className="w-4 h-4" />
                   </button>
                   <VoiceInput
-                    onText={(text) => setInput((prev) => prev ? prev + " " + text : text)}
+                    onText={(text) => setInput(text)}
+                    onSubmit={sendVoiceMessage}
                     disabled={isStreaming || uploading || !canChat}
                   />
                 </div>
