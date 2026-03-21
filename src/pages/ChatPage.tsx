@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profile";
 import { useFreeLimits } from "@/hooks/use-free-limits";
 import { Send, Loader2, Paperclip, X, FileText, Crown } from "lucide-react";
+import { VoiceInput } from "@/components/VoiceInput";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n";
 
@@ -246,16 +247,22 @@ export default function ChatPage() {
                   placeholder={canChat ? t.chat.placeholder : t.pricing.limitReached}
                   rows={1}
                   disabled={!canChat}
-                  className="w-full resize-none bg-card border border-border rounded-2xl pl-12 pr-14 py-3.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 shadow-lg disabled:opacity-50"
+                  className="w-full resize-none bg-card border border-border rounded-2xl pl-[5.5rem] pr-14 py-3.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 shadow-lg disabled:opacity-50"
                 />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isStreaming || uploading || !canChat}
-                  className="absolute left-2 bottom-2 p-2.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                >
-                  <Paperclip className="w-4 h-4" />
-                </button>
+                <div className="absolute left-2 bottom-2 flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isStreaming || uploading || !canChat}
+                    className="p-2.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+                  <VoiceInput
+                    onText={(text) => setInput((prev) => prev ? prev + " " + text : text)}
+                    disabled={isStreaming || uploading || !canChat}
+                  />
+                </div>
                 <button
                   type="submit"
                   disabled={(!input.trim() && !attachment) || isStreaming || uploading || !canChat}
