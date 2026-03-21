@@ -105,7 +105,7 @@ export default function ChatPage() {
     prevMessageCountRef.current = messages.length;
   }, [messages.length, speechSettings.autoRead]);
 
-
+  const handleRate = useCallback(async (messageId: string, rating: 1 | -1 | null) => {
     await supabase.from("messages").update({ rating }).eq("id", messageId);
     queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
   }, [conversationId, queryClient]);
