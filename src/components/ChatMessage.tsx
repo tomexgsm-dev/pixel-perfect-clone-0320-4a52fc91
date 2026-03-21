@@ -33,6 +33,30 @@ export function ChatMessage({ message, isStreaming, onRate }: ChatMessageProps) 
     onRate(message.id, newRating);
   };
 
+  const handleSpeak = useCallback(() => {
+    if (speaking) {
+      speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+    // Strip markdown/code for cleaner speech
+    const plainText = message.content
+      .replace(/```[\s\S]*?```/g, "")
+      .replace(/`[^`]*`/g, "")
+      .replace(/[#*_~>\[\]()!|-]/g, "")
+      .replace(/\n+/g, ". ")
+      .trim();
+    if (!plainText) return;
+
+    const utterance = new SpeechSynthesisUtterance(plainText);
+    utterance.lang = "pl-PL";
+    utterance.rate = 1;
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    setSpeaking(true);
+    speechSynthesis.speak(utterance);
+  }, [message.content, speaking]);
+
   const isImage = message.attachment_type?.startsWith("image/");
 
   return (
