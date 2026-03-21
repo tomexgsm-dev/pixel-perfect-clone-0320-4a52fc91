@@ -3,8 +3,10 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from "
 interface SpeechSettings {
   voiceURI: string;
   rate: number;
+  autoRead: boolean;
   setVoiceURI: (uri: string) => void;
   setRate: (rate: number) => void;
+  setAutoRead: (v: boolean) => void;
   voices: SpeechSynthesisVoice[];
 }
 
