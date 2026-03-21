@@ -76,7 +76,36 @@ export default function ChatPage() {
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   useEffect(() => { scrollToBottom(); }, [dbMessages, streamingMessage]);
 
-  const handleRate = useCallback(async (messageId: string, rating: 1 | -1 | null) => {
+  // Auto-read new assistant messages
+  useEffect(() => {
+    if (!speechSettings.autoRead || !messages.length) {
+      prevMessageCountRef.current = messages.length;
+      return;
+    }
+    if (messages.length > prevMessageCountRef.current) {
+      const last = messages[messages.length - 1];
+      if (last.role === "assistant" && last.content) {
+        const plainText = last.content
+          .replace(/```[\s\S]*?```/g, "")
+          .replace(/`[^`]*`/g, "")
+          .replace(/[#*_~>\[\]()!|-]/g, "")
+          .replace(/\n+/g, ". ")
+          .trim();
+        if (plainText) {
+          speechSynthesis.cancel();
+          const u = new SpeechSynthesisUtterance(plainText);
+          u.lang = "pl-PL";
+          u.rate = speechSettings.rate;
+          const voice = speechSettings.voices.find((v) => v.voiceURI === speechSettings.voiceURI);
+          if (voice) u.voice = voice;
+          speechSynthesis.speak(u);
+        }
+      }
+    }
+    prevMessageCountRef.current = messages.length;
+  }, [messages.length, speechSettings.autoRead]);
+
+
     await supabase.from("messages").update({ rating }).eq("id", messageId);
     queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
   }, [conversationId, queryClient]);
