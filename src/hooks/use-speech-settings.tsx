@@ -22,6 +22,9 @@ export function SpeechSettingsProvider({ children }: { children: ReactNode }) {
   const [rate, setRate] = useState(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}").rate || 1; } catch { return 1; }
   });
+  const [autoRead, setAutoRead] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}").autoRead || false; } catch { return false; }
+  });
 
   useEffect(() => {
     const load = () => {
