@@ -5,7 +5,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 
 export function SpeechSettingsPopover() {
-  const { voices, voiceURI, setVoiceURI, rate, setRate } = useSpeechSettings();
+  const { voices, voiceURI, setVoiceURI, rate, setRate, autoRead, setAutoRead } = useSpeechSettings();
 
   const polishVoices = voices.filter((v) => v.lang.startsWith("pl"));
   const allVoices = polishVoices.length > 0 ? polishVoices : voices;
