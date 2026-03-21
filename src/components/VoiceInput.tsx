@@ -4,10 +4,11 @@ import { cn } from "@/lib/utils";
 
 interface VoiceInputProps {
   onText: (text: string) => void;
+  onSubmit?: (text: string) => void;
   disabled?: boolean;
 }
 
-export function VoiceInput({ onText, disabled }: VoiceInputProps) {
+export function VoiceInput({ onText, onSubmit, disabled }: VoiceInputProps) {
   const [listening, setListening] = useState(false);
 
   const startListening = () => {
@@ -29,6 +30,7 @@ export function VoiceInput({ onText, disabled }: VoiceInputProps) {
       const text = event.results[0][0].transcript;
       onText(text);
       setListening(false);
+      if (onSubmit) onSubmit(text);
     };
 
     recognition.onerror = () => setListening(false);

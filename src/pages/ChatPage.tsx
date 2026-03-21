@@ -103,6 +103,16 @@ export default function ChatPage() {
     return { url: urlData.publicUrl, type: file.type, name: file.name };
   };
 
+  const sendVoiceMessage = useCallback(async (text: string) => {
+    if (!text.trim() || isStreaming || !conversationId || !canChat) return;
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+    const ok = await sendMessage(text.trim(), messages, conversation?.system_prompt, null);
+    if (ok) {
+      if (!(user && isPro)) freeLimits.decrementChat();
+      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+    }
+  }, [isStreaming, conversationId, canChat, messages, conversation?.system_prompt, sendMessage, user, isPro, freeLimits, queryClient]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!input.trim() && !attachment) || isStreaming || !conversationId || !canChat) return;
@@ -259,7 +269,8 @@ export default function ChatPage() {
                     <Paperclip className="w-4 h-4" />
                   </button>
                   <VoiceInput
-                    onText={(text) => setInput((prev) => prev ? prev + " " + text : text)}
+                    onText={(text) => setInput(text)}
+                    onSubmit={sendVoiceMessage}
                     disabled={isStreaming || uploading || !canChat}
                   />
                 </div>
