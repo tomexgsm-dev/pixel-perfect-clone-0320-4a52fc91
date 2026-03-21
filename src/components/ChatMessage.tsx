@@ -163,6 +163,9 @@ export function ChatMessage({ message, isStreaming, onRate }: ChatMessageProps) 
               <button onClick={handleCopy} title={t.chat.copy} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
                 {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
+              <button onClick={handleSpeak} title={speaking ? "Stop" : "Czytaj"} className={cn("p-1.5 rounded-lg transition-colors", speaking ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-accent")}>
+                {speaking ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+              </button>
               {onRate && message.id && (
                 <>
                   <button onClick={() => handleRate(1)} className={cn("p-1.5 rounded-lg transition-colors", message.rating === 1 ? "text-green-400 bg-green-400/10" : "text-muted-foreground hover:text-green-400 hover:bg-green-400/10")}>
