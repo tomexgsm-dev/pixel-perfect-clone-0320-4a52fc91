@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Bot, User, Copy, Check, ThumbsUp, ThumbsDown, FileText, Download } from "lucide-react";
+import { Bot, User, Copy, Check, ThumbsUp, ThumbsDown, FileText, Download, Volume2, VolumeX } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n";
@@ -18,6 +18,7 @@ interface ChatMessageProps {
 export function ChatMessage({ message, isStreaming, onRate }: ChatMessageProps) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const { t } = useI18n();
 
   const handleCopy = () => {
@@ -31,6 +32,30 @@ export function ChatMessage({ message, isStreaming, onRate }: ChatMessageProps) 
     const newRating = message.rating === value ? null : value;
     onRate(message.id, newRating);
   };
+
+  const handleSpeak = useCallback(() => {
+    if (speaking) {
+      speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+    // Strip markdown/code for cleaner speech
+    const plainText = message.content
+      .replace(/```[\s\S]*?```/g, "")
+      .replace(/`[^`]*`/g, "")
+      .replace(/[#*_~>\[\]()!|-]/g, "")
+      .replace(/\n+/g, ". ")
+      .trim();
+    if (!plainText) return;
+
+    const utterance = new SpeechSynthesisUtterance(plainText);
+    utterance.lang = "pl-PL";
+    utterance.rate = 1;
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    setSpeaking(true);
+    speechSynthesis.speak(utterance);
+  }, [message.content, speaking]);
 
   const isImage = message.attachment_type?.startsWith("image/");
 
@@ -137,6 +162,9 @@ export function ChatMessage({ message, isStreaming, onRate }: ChatMessageProps) 
             <div className="flex items-center gap-1 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <button onClick={handleCopy} title={t.chat.copy} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
                 {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+              <button onClick={handleSpeak} title={speaking ? "Stop" : "Czytaj"} className={cn("p-1.5 rounded-lg transition-colors", speaking ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-accent")}>
+                {speaking ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
               </button>
               {onRate && message.id && (
                 <>
