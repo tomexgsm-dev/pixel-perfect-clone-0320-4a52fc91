@@ -158,11 +158,11 @@ async function generateWithFallback(prompt: string): Promise<string> {
     console.log("⚠️ Lovable AI failed:", lovableErr);
   }
 
-  // 3. Pollinations.ai (always works, free, no key needed)
+  // 3. Pollinations.ai (free, no key needed)
   console.log("🌸 Using Pollinations.ai free fallback");
-  const pollinationsUrl = getPollinationsUrl(prompt);
-  cache[prompt] = pollinationsUrl;
-  return pollinationsUrl;
+  const pollinationsImage = await callPollinations(prompt);
+  cache[prompt] = pollinationsImage;
+  return pollinationsImage;
 }
 
 async function callLocalSD(sdUrl: string, endpoint: string, body: Record<string, unknown>): Promise<unknown> {
