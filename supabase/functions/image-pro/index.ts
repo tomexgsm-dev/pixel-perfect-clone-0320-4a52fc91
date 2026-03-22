@@ -37,12 +37,16 @@ async function tryMultiAI(prompt: string): Promise<string> {
   for (let i = 0; i < pool.length; i++) {
     const server = getWorkingServer(pool);
     try {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 15000);
+
       const res = await fetch(`${server.url}/run/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           data: [prompt, 768, "1:1", null, 15, 3],
         }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
