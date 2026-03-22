@@ -80,8 +80,50 @@ async function callLovableImage(prompt: string): Promise<string> {
   return imageUrl;
 }
 
-function getPollinationsUrl(prompt: string): string {
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=768&nologo=true`;
+async function callReplicate(prompt: string): Promise<string> {
+  const REPLICATE_API = Deno.env.get("REPLICATE_API");
+  if (!REPLICATE_API) throw new Error("REPLICATE_API not configured");
+
+  console.log("🎯 Replicate request for:", prompt.slice(0, 50));
+
+  // Start prediction with FLUX schnell (fast, free tier eligible)
+  const createRes = await fetch("https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${REPLICATE_API}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      input: { prompt, go_fast: true, num_outputs: 1, aspect_ratio: "1:1", output_format: "jpg", output_quality: 80 },
+    }),
+  });
+
+  if (!createRes.ok) {
+    const errText = await createRes.text();
+    console.error("Replicate create error:", createRes.status, errText);
+    throw new Error(`Replicate HTTP ${createRes.status}`);
+  }
+
+  let prediction = await createRes.json();
+
+  // Poll for completion (max 60s)
+  for (let i = 0; i < 30; i++) {
+    if (prediction.status === "succeeded") break;
+    if (prediction.status === "failed" || prediction.status === "canceled") {
+      throw new Error(`Replicate prediction ${prediction.status}`);
+    }
+    await new Promise(r => setTimeout(r, 2000));
+    const pollRes = await fetch(prediction.urls.get, {
+      headers: { Authorization: `Bearer ${REPLICATE_API}` },
+    });
+    prediction = await pollRes.json();
+  }
+
+  if (prediction.status !== "succeeded" || !prediction.output?.[0]) {
+    throw new Error("Replicate: no output");
+  }
+
+  return prediction.output[0]; // Returns a URL
 }
 
 async function generateWithFallback(prompt: string): Promise<string> {
@@ -147,11 +189,17 @@ async function generateWithFallback(prompt: string): Promise<string> {
     console.log("⚠️ Lovable AI failed:", lovableErr);
   }
 
-  // 3. Pollinations.ai (always works, free, no key needed)
-  console.log("🌸 Using Pollinations.ai free fallback");
-  const pollinationsUrl = getPollinationsUrl(prompt);
-  cache[prompt] = pollinationsUrl;
-  return pollinationsUrl;
+  // 3. Replicate (FLUX schnell)
+  try {
+    console.log("🎯 Using Replicate fallback");
+    const replicateUrl = await callReplicate(prompt);
+    cache[prompt] = replicateUrl;
+    return replicateUrl;
+  } catch (repErr) {
+    console.log("❌ Replicate failed:", repErr);
+  }
+
+  throw new HttpError(503, "All image generation backends are currently unavailable");
 }
 
 async function callLocalSD(sdUrl: string, endpoint: string, body: Record<string, unknown>): Promise<unknown> {
