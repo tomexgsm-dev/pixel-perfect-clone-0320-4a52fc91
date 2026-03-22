@@ -273,10 +273,13 @@ serve(async (req) => {
       });
     }
 
-    // For Claude, transform the stream to OpenAI-compatible format
-    const outputBody = config.type === "claude" && response.body
-      ? transformClaudeStream(response.body)
-      : response.body;
+    // Transform non-OpenAI streams to OpenAI-compatible format
+    let outputBody = response.body;
+    if (config.type === "claude" && response.body) {
+      outputBody = transformClaudeStream(response.body);
+    } else if (config.type === "gemini" && response.body) {
+      outputBody = transformGeminiStream(response.body);
+    }
 
     return new Response(outputBody, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
