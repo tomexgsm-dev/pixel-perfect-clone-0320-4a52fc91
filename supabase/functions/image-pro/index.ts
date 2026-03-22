@@ -80,8 +80,19 @@ async function callLovableImage(prompt: string): Promise<string> {
   return imageUrl;
 }
 
-function getPollinationsUrl(prompt: string): string {
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=768&nologo=true`;
+async function callPollinations(prompt: string): Promise<string> {
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=768&nologo=true`;
+  console.log("🌸 Pollinations.ai request:", url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(60000) });
+  if (!res.ok) throw new Error(`Pollinations HTTP ${res.status}`);
+  const buffer = await res.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const base64 = btoa(binary);
+  return `data:image/jpeg;base64,${base64}`;
 }
 
 async function generateWithFallback(prompt: string): Promise<string> {
