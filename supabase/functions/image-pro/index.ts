@@ -5,7 +5,71 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-async function callLocalSD(sdUrl: string, endpoint: string, body: Record<string, any>): Promise<any> {
+// 🔥 Multi-AI: HuggingFace Spaces (Gradio API)
+const AI_SERVERS = [
+  { url: "https://tongyi-mai-z-image-turbo.hf.space", status: "ok" },
+  { url: "https://mrfakename-z-image-turbo.hf.space", status: "ok" },
+  { url: "https://ap123-illusiondiffusion.hf.space", status: "ok" },
+];
+
+// Clone state per request to avoid shared mutation issues in edge functions
+function createServerPool() {
+  return AI_SERVERS.map(s => ({ ...s }));
+}
+
+function getWorkingServer(pool: typeof AI_SERVERS) {
+  const working = pool.filter(s => s.status === "ok");
+  if (working.length === 0) {
+    pool.forEach(s => s.status = "ok");
+    return pool[0];
+  }
+  return working[Math.floor(Math.random() * working.length)];
+}
+
+function markAsDown(pool: typeof AI_SERVERS, url: string) {
+  const s = pool.find(s => s.url === url);
+  if (s) s.status = "down";
+}
+
+async function tryMultiAI(prompt: string): Promise<string> {
+  const pool = createServerPool();
+
+  for (let i = 0; i < pool.length; i++) {
+    const server = getWorkingServer(pool);
+    try {
+      const res = await fetch(`${server.url}/run/predict`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          data: [prompt, 768, "1:1", null, 15, 3],
+        }),
+      });
+
+      if (!res.ok) {
+        console.log(`❌ AI ${res.status}:`, server.url);
+        markAsDown(pool, server.url);
+        continue;
+      }
+
+      const data = await res.json();
+
+      if (data?.data?.[0]) {
+        console.log("✅ AI OK:", server.url);
+        return data.data[0]; // base64 or URL from Gradio
+      }
+
+      markAsDown(pool, server.url);
+    } catch (err) {
+      console.log("❌ AI padło:", server.url, err);
+      markAsDown(pool, server.url);
+    }
+  }
+
+  throw new Error("Wszystkie serwery AI offline");
+}
+
+// --- Fallback: local SD API (if SD_LOCAL_URL is set) ---
+async function callLocalSD(sdUrl: string, endpoint: string, body: Record<string, unknown>): Promise<unknown> {
   const url = `${sdUrl.replace(/\/$/, "")}${endpoint}`;
   const res = await fetch(url, {
     method: "POST",
@@ -23,50 +87,63 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const SD_URL = Deno.env.get("SD_LOCAL_URL");
-    if (!SD_URL) throw new Error("SD_LOCAL_URL is not configured");
-
     const { action, prompt, image } = await req.json();
+    const SD_URL = Deno.env.get("SD_LOCAL_URL");
 
     let imageResult: string;
 
     switch (action) {
       case "generate": {
         if (!prompt) throw new Error("Prompt is required");
-        const data = await callLocalSD(SD_URL, "/sdapi/v1/txt2img", {
-          prompt,
-          steps: 20,
-          width: 512,
-          height: 512,
-        });
-        imageResult = `data:image/png;base64,${data.images[0]}`;
+
+        // 🔥 Try multi-AI (HF Spaces) first, then fall back to local SD
+        try {
+          imageResult = await tryMultiAI(prompt);
+        } catch (multiErr) {
+          console.log("Multi-AI failed, trying local SD...", multiErr);
+          if (!SD_URL) throw new Error("All AI servers offline and no local SD configured");
+          const data = await callLocalSD(SD_URL, "/sdapi/v1/txt2img", {
+            prompt,
+            steps: 20,
+            width: 512,
+            height: 512,
+          }) as { images: string[] };
+          imageResult = `data:image/png;base64,${data.images[0]}`;
+        }
         break;
       }
       case "product": {
         if (!prompt) throw new Error("Prompt is required");
         const fullPrompt = `person holding product ${prompt}, studio lighting, realistic, advertisement, high quality`;
-        const data = await callLocalSD(SD_URL, "/sdapi/v1/txt2img", {
-          prompt: fullPrompt,
-          steps: 25,
-          width: 512,
-          height: 512,
-        });
-        imageResult = `data:image/png;base64,${data.images[0]}`;
+
+        try {
+          imageResult = await tryMultiAI(fullPrompt);
+        } catch {
+          if (!SD_URL) throw new Error("All AI servers offline");
+          const data = await callLocalSD(SD_URL, "/sdapi/v1/txt2img", {
+            prompt: fullPrompt,
+            steps: 25,
+            width: 512,
+            height: 512,
+          }) as { images: string[] };
+          imageResult = `data:image/png;base64,${data.images[0]}`;
+        }
         break;
       }
       case "upscale": {
         if (!image) throw new Error("Image is required");
-        // Use img2img with higher resolution for upscale
+        if (!SD_URL) throw new Error("Upscale requires local SD");
         const data = await callLocalSD(SD_URL, "/sdapi/v1/extra-single-image", {
           image: image.startsWith("data:") ? image.split(",")[1] : image,
           upscaler_1: "R-ESRGAN 4x+",
           upscaling_resize: 4,
-        });
+        }) as { image: string };
         imageResult = `data:image/png;base64,${data.image}`;
         break;
       }
       case "coloring": {
         if (!image) throw new Error("Image is required");
+        if (!SD_URL) throw new Error("Coloring requires local SD");
         const imgBase64 = image.startsWith("data:") ? image.split(",")[1] : image;
         const data = await callLocalSD(SD_URL, "/sdapi/v1/img2img", {
           init_images: [imgBase64],
@@ -75,12 +152,13 @@ serve(async (req) => {
           denoising_strength: 0.75,
           width: 512,
           height: 512,
-        });
+        }) as { images: string[] };
         imageResult = `data:image/png;base64,${data.images[0]}`;
         break;
       }
       case "enhance": {
         if (!image) throw new Error("Image is required");
+        if (!SD_URL) throw new Error("Enhance requires local SD");
         const imgBase64 = image.startsWith("data:") ? image.split(",")[1] : image;
         const data = await callLocalSD(SD_URL, "/sdapi/v1/img2img", {
           init_images: [imgBase64],
@@ -89,7 +167,7 @@ serve(async (req) => {
           denoising_strength: 0.35,
           width: 512,
           height: 512,
-        });
+        }) as { images: string[] };
         imageResult = `data:image/png;base64,${data.images[0]}`;
         break;
       }
