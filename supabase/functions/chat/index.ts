@@ -116,7 +116,21 @@ async function callGemini(config: any, messages: any[], systemPrompt: string) {
   });
 }
 
-async function callOpenAICompatible(config: any, messages: any[], systemPrompt: string) {
+function flattenMessages(messages: any[]) {
+  return messages.map((m: any) => {
+    if (Array.isArray(m.content)) {
+      const text = m.content
+        .filter((c: any) => c.type === "text")
+        .map((c: any) => c.text)
+        .join("\n");
+      return { role: m.role, content: text || "" };
+    }
+    return m;
+  });
+}
+
+async function callOpenAICompatible(config: any, messages: any[], systemPrompt: string, forceFlatten = false) {
+  const msgs = forceFlatten ? flattenMessages(messages) : messages;
   return await fetch(config.url, {
     method: "POST",
     headers: {
@@ -127,7 +141,7 @@ async function callOpenAICompatible(config: any, messages: any[], systemPrompt: 
       model: config.model,
       messages: [
         { role: "system", content: systemPrompt },
-        ...messages,
+        ...msgs,
       ],
       stream: true,
     }),
