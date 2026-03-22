@@ -116,7 +116,21 @@ async function callGemini(config: any, messages: any[], systemPrompt: string) {
   });
 }
 
-async function callOpenAICompatible(config: any, messages: any[], systemPrompt: string) {
+function flattenMessages(messages: any[]) {
+  return messages.map((m: any) => {
+    if (Array.isArray(m.content)) {
+      const text = m.content
+        .filter((c: any) => c.type === "text")
+        .map((c: any) => c.text)
+        .join("\n");
+      return { role: m.role, content: text || "" };
+    }
+    return m;
+  });
+}
+
+async function callOpenAICompatible(config: any, messages: any[], systemPrompt: string, forceFlatten = false) {
+  const msgs = forceFlatten ? flattenMessages(messages) : messages;
   return await fetch(config.url, {
     method: "POST",
     headers: {
@@ -127,7 +141,7 @@ async function callOpenAICompatible(config: any, messages: any[], systemPrompt: 
       model: config.model,
       messages: [
         { role: "system", content: systemPrompt },
-        ...messages,
+        ...msgs,
       ],
       stream: true,
     }),
@@ -261,7 +275,7 @@ serve(async (req) => {
       const groq = getGroqFallback();
       if (groq.key) {
         console.log("⚡ No key for", selectedModel, "→ Groq fallback");
-        const response = await callOpenAICompatible(groq, messages, system);
+        const response = await callOpenAICompatible(groq, messages, system, true);
         if (response.ok) {
           return new Response(response.body, {
             headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
@@ -284,7 +298,7 @@ serve(async (req) => {
       const groq = getGroqFallback();
       if (groq.key) {
         console.log("⚡ Falling back to Groq (llama-3.3-70b-versatile)");
-        const fallbackResponse = await callOpenAICompatible(groq, messages, system);
+        const fallbackResponse = await callOpenAICompatible(groq, messages, system, true);
         if (fallbackResponse.ok) {
           return new Response(fallbackResponse.body, {
             headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
