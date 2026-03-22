@@ -80,12 +80,17 @@ async function callLovableImage(prompt: string): Promise<string> {
   return imageUrl;
 }
 
+function getPollinationsUrl(prompt: string): string {
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=768&nologo=true`;
+}
+
 async function generateWithFallback(prompt: string): Promise<string> {
   if (cache[prompt]) {
     console.log("💾 Cache hit:", prompt.slice(0, 40));
     return cache[prompt];
   }
 
+  // 1. Try HF Spaces
   for (let i = 0; i < AI_SERVERS.length; i++) {
     const server = getWorkingServer();
     const controller = new AbortController();
@@ -132,10 +137,21 @@ async function generateWithFallback(prompt: string): Promise<string> {
     }
   }
 
-  console.log("⚠️ All HF AI servers offline, using Lovable AI fallback");
-  const imageUrl = await callLovableImage(prompt);
-  cache[prompt] = imageUrl;
-  return imageUrl;
+  // 2. Try Lovable AI (Gemini)
+  try {
+    console.log("⚠️ All HF offline, trying Lovable AI...");
+    const imageUrl = await callLovableImage(prompt);
+    cache[prompt] = imageUrl;
+    return imageUrl;
+  } catch (lovableErr) {
+    console.log("⚠️ Lovable AI failed:", lovableErr);
+  }
+
+  // 3. Pollinations.ai (always works, free, no key needed)
+  console.log("🌸 Using Pollinations.ai free fallback");
+  const pollinationsUrl = getPollinationsUrl(prompt);
+  cache[prompt] = pollinationsUrl;
+  return pollinationsUrl;
 }
 
 async function callLocalSD(sdUrl: string, endpoint: string, body: Record<string, unknown>): Promise<unknown> {
