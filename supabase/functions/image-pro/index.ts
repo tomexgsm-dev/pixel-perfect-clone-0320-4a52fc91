@@ -189,11 +189,17 @@ async function generateWithFallback(prompt: string): Promise<string> {
     console.log("⚠️ Lovable AI failed:", lovableErr);
   }
 
-  // 3. Pollinations.ai (free, no key needed)
-  console.log("🌸 Using Pollinations.ai free fallback");
-  const pollinationsImage = await callPollinations(prompt);
-  cache[prompt] = pollinationsImage;
-  return pollinationsImage;
+  // 3. Replicate (FLUX schnell)
+  try {
+    console.log("🎯 Using Replicate fallback");
+    const replicateUrl = await callReplicate(prompt);
+    cache[prompt] = replicateUrl;
+    return replicateUrl;
+  } catch (repErr) {
+    console.log("❌ Replicate failed:", repErr);
+  }
+
+  throw new HttpError(503, "All image generation backends are currently unavailable");
 }
 
 async function callLocalSD(sdUrl: string, endpoint: string, body: Record<string, unknown>): Promise<unknown> {
