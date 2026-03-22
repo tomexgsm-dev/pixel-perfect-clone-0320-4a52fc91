@@ -14,7 +14,7 @@ import { SpeechSettingsPopover } from "@/components/SpeechSettingsPopover";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n";
 import { useSpeechSettings } from "@/hooks/use-speech-settings";
-import { ModelSelector, type AIModelId } from "@/components/ModelSelector";
+import { type AIModelId } from "@/components/ModelSelector";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
