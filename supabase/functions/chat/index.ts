@@ -17,7 +17,7 @@ function getProviderConfig(model: string) {
       };
     case "mistral":
       return {
-        url: "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3/v1/chat/completions",
+        url: "https://router.huggingface.co/hf-inference/models/mistralai/Mistral-7B-Instruct-v0.3/v1/chat/completions",
         key: Deno.env.get("HF_KEY"),
         model: "mistralai/Mistral-7B-Instruct-v0.3",
         type: "openai" as const,
