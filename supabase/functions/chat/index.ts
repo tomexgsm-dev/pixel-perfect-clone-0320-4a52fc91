@@ -298,7 +298,7 @@ serve(async (req) => {
       const groq = getGroqFallback();
       if (groq.key) {
         console.log("⚡ Falling back to Groq (llama-3.3-70b-versatile)");
-        const fallbackResponse = await callOpenAICompatible(groq, messages, system);
+        const fallbackResponse = await callOpenAICompatible(groq, messages, system, true);
         if (fallbackResponse.ok) {
           return new Response(fallbackResponse.body, {
             headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
