@@ -92,7 +92,11 @@ serve(async (req) => {
 
   try {
     const { action, prompt, image } = await req.json();
-    const SD_URL = Deno.env.get("SD_LOCAL_URL");
+    const rawSdUrl = Deno.env.get("SD_LOCAL_URL");
+    const SD_URL = rawSdUrl && rawSdUrl.startsWith("http") ? rawSdUrl : null;
+    if (rawSdUrl && !SD_URL) {
+      console.warn("SD_LOCAL_URL is not a valid URL (starts with:", rawSdUrl.substring(0, 10) + "...)");
+    }
 
     let imageResult: string;
 
