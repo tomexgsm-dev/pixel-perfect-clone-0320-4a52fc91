@@ -275,7 +275,7 @@ serve(async (req) => {
       const groq = getGroqFallback();
       if (groq.key) {
         console.log("⚡ No key for", selectedModel, "→ Groq fallback");
-        const response = await callOpenAICompatible(groq, messages, system);
+        const response = await callOpenAICompatible(groq, messages, system, true);
         if (response.ok) {
           return new Response(response.body, {
             headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
