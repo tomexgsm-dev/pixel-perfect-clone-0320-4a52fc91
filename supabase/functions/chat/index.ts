@@ -246,6 +246,8 @@ serve(async (req) => {
 
     if (config.type === "claude") {
       response = await callClaude(config, messages, system);
+    } else if (config.type === "gemini") {
+      response = await callGemini(config, messages, system);
     } else {
       response = await callOpenAICompatible(config, messages, system);
     }
