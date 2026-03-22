@@ -38,18 +38,17 @@ function getProviderConfig(model: string) {
       };
     case "gemini":
       return {
-        url: "https://ai.gateway.lovable.dev/v1/chat/completions",
-        key: Deno.env.get("LOVABLE_API_KEY"),
-        model: "google/gemini-2.5-flash",
-        type: "openai" as const,
+        url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=${Deno.env.get("GEMINI_KEY")}`,
+        key: Deno.env.get("GEMINI_KEY"),
+        model: "gemini-2.0-flash",
+        type: "gemini" as const,
       };
     default:
-      // Default: Lovable AI Gateway with random Gemini model
       return {
-        url: "https://ai.gateway.lovable.dev/v1/chat/completions",
-        key: Deno.env.get("LOVABLE_API_KEY"),
-        model: "google/gemini-2.5-flash",
-        type: "openai" as const,
+        url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=${Deno.env.get("GEMINI_KEY")}`,
+        key: Deno.env.get("GEMINI_KEY"),
+        model: "gemini-2.0-flash",
+        type: "gemini" as const,
       };
   }
 }
@@ -79,6 +78,31 @@ async function callClaude(config: any, messages: any[], systemPrompt: string) {
       system: systemPrompt,
       messages: claudeMessages,
       stream: true,
+    }),
+  });
+
+  return response;
+}
+
+async function callGemini(config: any, messages: any[], systemPrompt: string) {
+  // Convert OpenAI message format to Gemini format
+  const contents = messages.map((m: any) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: typeof m.content === "string"
+      ? [{ text: m.content }]
+      : m.content.map((c: any) => {
+          if (c.type === "text") return { text: c.text };
+          if (c.type === "image_url") return { text: `[Image: ${c.image_url.url}]` };
+          return { text: "" };
+        }),
+  }));
+
+  const response = await fetch(config.url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents,
     }),
   });
 
@@ -154,6 +178,51 @@ function transformClaudeStream(body: ReadableStream<Uint8Array>): ReadableStream
   });
 }
 
+// Transform Gemini SSE stream to OpenAI-compatible SSE stream
+function transformGeminiStream(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buffer = "";
+
+  return new ReadableStream({
+    async pull(controller) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+          return;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        let newlineIndex: number;
+        while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+          const line = buffer.slice(0, newlineIndex).trim();
+          buffer = buffer.slice(newlineIndex + 1);
+
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6);
+          if (!jsonStr) continue;
+
+          try {
+            const event = JSON.parse(jsonStr);
+            const text = event.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) {
+              const openAIChunk = {
+                choices: [{ delta: { content: text } }],
+              };
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(openAIChunk)}\n\n`));
+            }
+          } catch {
+            // skip
+          }
+        }
+      }
+    },
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -177,6 +246,8 @@ serve(async (req) => {
 
     if (config.type === "claude") {
       response = await callClaude(config, messages, system);
+    } else if (config.type === "gemini") {
+      response = await callGemini(config, messages, system);
     } else {
       response = await callOpenAICompatible(config, messages, system);
     }
@@ -202,10 +273,13 @@ serve(async (req) => {
       });
     }
 
-    // For Claude, transform the stream to OpenAI-compatible format
-    const outputBody = config.type === "claude" && response.body
-      ? transformClaudeStream(response.body)
-      : response.body;
+    // Transform non-OpenAI streams to OpenAI-compatible format
+    let outputBody = response.body;
+    if (config.type === "claude" && response.body) {
+      outputBody = transformClaudeStream(response.body);
+    } else if (config.type === "gemini" && response.body) {
+      outputBody = transformGeminiStream(response.body);
+    }
 
     return new Response(outputBody, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
