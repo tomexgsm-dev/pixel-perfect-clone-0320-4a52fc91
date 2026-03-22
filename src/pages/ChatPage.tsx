@@ -165,7 +165,7 @@ export default function ChatPage() {
       setUploading(false);
     }
 
-    const ok = await sendMessage(content || "📎 " + (attachmentData?.name || "attachment"), messages, conversation?.system_prompt, attachmentData);
+    const ok = await sendMessage(content || "📎 " + (attachmentData?.name || "attachment"), messages, conversation?.system_prompt, attachmentData, selectedModel);
     if (ok) {
       // Decrement free limits only for non-PRO users
       if (!(user && isPro)) freeLimits.decrementChat();
