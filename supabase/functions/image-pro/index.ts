@@ -5,37 +5,82 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// 🔥 SERWERY AI (z failover + status tracking)
+class HttpError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
 let AI_SERVERS = [
   { url: "https://tongyi-mai-z-image-turbo.hf.space", status: "ok" },
   { url: "https://mrfakename-z-image-turbo.hf.space", status: "ok" },
   { url: "https://ap123-illusiondiffusion.hf.space", status: "ok" },
 ];
 
-// 💾 CACHE (w pamięci edge function instance)
 const cache: Record<string, string> = {};
 
-// 🧠 wybór działającego serwera
 function getWorkingServer() {
-  const working = AI_SERVERS.filter(s => s.status === "ok");
+  const working = AI_SERVERS.filter((server) => server.status === "ok");
+
   if (working.length === 0) {
-    // reset all servers if all down
-    AI_SERVERS = AI_SERVERS.map(s => ({ ...s, status: "ok" }));
+    AI_SERVERS = AI_SERVERS.map((server) => ({ ...server, status: "ok" }));
     return AI_SERVERS[0];
   }
+
   return working[Math.floor(Math.random() * working.length)];
 }
 
-// ❌ oznacz jako padnięty
 function markAsDown(url: string) {
-  AI_SERVERS = AI_SERVERS.map(s =>
-    s.url === url ? { ...s, status: "down" } : s
+  AI_SERVERS = AI_SERVERS.map((server) =>
+    server.url === url ? { ...server, status: "down" } : server,
   );
 }
 
-// 🔁 główna funkcja AI z cache + failover
-async function generateWithHF(prompt: string): Promise<string> {
-  // 💾 CACHE HIT
+async function callLovableImage(prompt: string): Promise<string> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) throw new HttpError(500, "LOVABLE_API_KEY is not configured");
+
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash-image",
+      messages: [{ role: "user", content: prompt }],
+      modalities: ["image", "text"],
+    }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      throw new HttpError(429, "Rate limit exceeded. Please try again later.");
+    }
+    if (response.status === 402) {
+      throw new HttpError(402, "Credits exhausted. Please add funds.");
+    }
+
+    const errorText = await response.text();
+    console.error("Lovable AI image error:", response.status, errorText);
+    throw new HttpError(500, "Image generation failed");
+  }
+
+  const data = await response.json();
+  const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+
+  if (!imageUrl) {
+    console.error("Lovable AI image response missing image:", data);
+    throw new HttpError(500, "No image generated");
+  }
+
+  return imageUrl;
+}
+
+async function generateWithFallback(prompt: string): Promise<string> {
   if (cache[prompt]) {
     console.log("💾 Cache hit:", prompt.slice(0, 40));
     return cache[prompt];
@@ -43,10 +88,10 @@ async function generateWithHF(prompt: string): Promise<string> {
 
   for (let i = 0; i < AI_SERVERS.length; i++) {
     const server = getWorkingServer();
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
 
+    try {
       const res = await fetch(`${server.url}/run/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -56,22 +101,41 @@ async function generateWithHF(prompt: string): Promise<string> {
         }),
       });
 
-      clearTimeout(timeout);
+      const rawText = await res.text();
 
-      const data = await res.json() as { data?: string[] };
+      if (!res.ok) {
+        console.log(`❌ HF server HTTP ${res.status}: ${server.url}`, rawText.slice(0, 200));
+        markAsDown(server.url);
+        continue;
+      }
+
+      let data: { data?: string[] };
+      try {
+        data = JSON.parse(rawText) as { data?: string[] };
+      } catch (parseError) {
+        console.log(`❌ HF invalid JSON: ${server.url}`, parseError, rawText.slice(0, 200));
+        markAsDown(server.url);
+        continue;
+      }
+
       if (data?.data?.[0]) {
-        cache[prompt] = data.data[0]; // zapis do cache
+        cache[prompt] = data.data[0];
         return data.data[0];
       }
 
       markAsDown(server.url);
     } catch (err) {
-      console.log(`❌ AI padło: ${server.url}`, err);
+      console.log(`❌ HF request failed: ${server.url}`, err);
       markAsDown(server.url);
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
-  throw new Error("All HF AI servers offline");
+  console.log("⚠️ All HF AI servers offline, using Lovable AI fallback");
+  const imageUrl = await callLovableImage(prompt);
+  cache[prompt] = imageUrl;
+  return imageUrl;
 }
 
 async function callLocalSD(sdUrl: string, endpoint: string, body: Record<string, unknown>): Promise<unknown> {
@@ -82,10 +146,12 @@ async function callLocalSD(sdUrl: string, endpoint: string, body: Record<string,
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(60000),
   });
+
   if (!res.ok) {
-    const t = await res.text();
-    throw new Error(`SD API error ${res.status}: ${t}`);
+    const errorText = await res.text();
+    throw new Error(`SD API error ${res.status}: ${errorText}`);
   }
+
   return await res.json();
 }
 
@@ -94,50 +160,60 @@ serve(async (req) => {
 
   try {
     const SD_URL = Deno.env.get("SD_LOCAL_URL");
-    const hasLocalSD = SD_URL && SD_URL.startsWith("http");
+    const hasLocalSD = typeof SD_URL === "string" && SD_URL.startsWith("http");
 
     const { action, prompt, image } = await req.json();
     let imageResult: string;
 
     switch (action) {
       case "generate": {
-        if (!prompt) throw new Error("Prompt is required");
+        if (!prompt) throw new HttpError(400, "Prompt is required");
+
         if (hasLocalSD) {
           try {
             const data = await callLocalSD(SD_URL, "/sdapi/v1/txt2img", {
-              prompt, steps: 20, width: 512, height: 512,
+              prompt,
+              steps: 20,
+              width: 512,
+              height: 512,
             }) as { images: string[] };
             imageResult = `data:image/png;base64,${data.images[0]}`;
           } catch (sdErr) {
-            console.log("⚠️ Local SD failed, falling back to HF:", sdErr);
-            imageResult = await generateWithHF(prompt);
+            console.log("⚠️ Local SD failed, falling back:", sdErr);
+            imageResult = await generateWithFallback(prompt);
           }
         } else {
-          imageResult = await generateWithHF(prompt);
+          imageResult = await generateWithFallback(prompt);
         }
         break;
       }
       case "product": {
-        if (!prompt) throw new Error("Prompt is required");
+        if (!prompt) throw new HttpError(400, "Prompt is required");
+
         const fullPrompt = `person holding product ${prompt}, studio lighting, realistic, advertisement, high quality`;
+
         if (hasLocalSD) {
           try {
             const data = await callLocalSD(SD_URL, "/sdapi/v1/txt2img", {
-              prompt: fullPrompt, steps: 25, width: 512, height: 512,
+              prompt: fullPrompt,
+              steps: 25,
+              width: 512,
+              height: 512,
             }) as { images: string[] };
             imageResult = `data:image/png;base64,${data.images[0]}`;
           } catch (sdErr) {
-            console.log("⚠️ Local SD failed, falling back to HF:", sdErr);
-            imageResult = await generateWithHF(fullPrompt);
+            console.log("⚠️ Local SD failed, falling back:", sdErr);
+            imageResult = await generateWithFallback(fullPrompt);
           }
         } else {
-          imageResult = await generateWithHF(fullPrompt);
+          imageResult = await generateWithFallback(fullPrompt);
         }
         break;
       }
       case "upscale": {
-        if (!image) throw new Error("Image is required");
-        if (!hasLocalSD) throw new Error("Upscale wymaga lokalnego SD (ustaw SD_LOCAL_URL)");
+        if (!image) throw new HttpError(400, "Image is required");
+        if (!hasLocalSD) throw new HttpError(500, "Upscale wymaga lokalnego SD (ustaw SD_LOCAL_URL)");
+
         const data = await callLocalSD(SD_URL, "/sdapi/v1/extra-single-image", {
           image: image.startsWith("data:") ? image.split(",")[1] : image,
           upscaler_1: "R-ESRGAN 4x+",
@@ -147,33 +223,39 @@ serve(async (req) => {
         break;
       }
       case "coloring": {
-        if (!image) throw new Error("Image is required");
-        if (!hasLocalSD) throw new Error("Kolorowanka wymaga lokalnego SD (ustaw SD_LOCAL_URL)");
+        if (!image) throw new HttpError(400, "Image is required");
+        if (!hasLocalSD) throw new HttpError(500, "Kolorowanka wymaga lokalnego SD (ustaw SD_LOCAL_URL)");
+
         const imgBase64 = image.startsWith("data:") ? image.split(",")[1] : image;
         const data = await callLocalSD(SD_URL, "/sdapi/v1/img2img", {
           init_images: [imgBase64],
           prompt: "clean line art coloring book page, black outlines on white background, no shading, no color",
-          steps: 20, denoising_strength: 0.75, width: 512, height: 512,
+          steps: 20,
+          denoising_strength: 0.75,
+          width: 512,
+          height: 512,
         }) as { images: string[] };
         imageResult = `data:image/png;base64,${data.images[0]}`;
         break;
       }
       case "enhance": {
-        if (!image) throw new Error("Image is required");
-        if (!hasLocalSD) throw new Error("Enhance wymaga lokalnego SD (ustaw SD_LOCAL_URL)");
+        if (!image) throw new HttpError(400, "Image is required");
+        if (!hasLocalSD) throw new HttpError(500, "Enhance wymaga lokalnego SD (ustaw SD_LOCAL_URL)");
+
         const imgBase64 = image.startsWith("data:") ? image.split(",")[1] : image;
         const data = await callLocalSD(SD_URL, "/sdapi/v1/img2img", {
           init_images: [imgBase64],
           prompt: "high quality, sharp, detailed, HDR, enhanced colors, professional photo",
-          steps: 25, denoising_strength: 0.35, width: 512, height: 512,
+          steps: 25,
+          denoising_strength: 0.35,
+          width: 512,
+          height: 512,
         }) as { images: string[] };
         imageResult = `data:image/png;base64,${data.images[0]}`;
         break;
       }
       default:
-        return new Response(JSON.stringify({ error: "Invalid action" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        throw new HttpError(400, "Invalid action");
     }
 
     return new Response(JSON.stringify({ image: imageResult }), {
@@ -181,8 +263,13 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("image-pro error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+
+    const status = e instanceof HttpError ? e.status : 500;
+    const message = e instanceof Error ? e.message : "Unknown error";
+
+    return new Response(JSON.stringify({ error: message }), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
