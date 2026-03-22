@@ -26,7 +26,8 @@ export function useChatStream(conversationId: string | undefined) {
     content: string,
     messages: Message[],
     systemPrompt?: string | null,
-    attachment?: AttachmentData | null
+    attachment?: AttachmentData | null,
+    model?: string
   ): Promise<boolean> => {
     if (!conversationId) return false;
 
