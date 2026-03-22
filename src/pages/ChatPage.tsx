@@ -141,7 +141,7 @@ export default function ChatPage() {
   const sendVoiceMessage = useCallback(async (text: string) => {
     if (!text.trim() || isStreaming || !conversationId || !canChat) return;
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-    const ok = await sendMessage(text.trim(), messages, conversation?.system_prompt, null);
+    const ok = await sendMessage(text.trim(), messages, conversation?.system_prompt, null, selectedModel);
     if (ok) {
       if (!(user && isPro)) freeLimits.decrementChat();
       queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
