@@ -5,12 +5,74 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// HuggingFace Spaces AI servers
-const AI_SERVERS = [
-  "https://tongyi-mai-z-image-turbo.hf.space",
-  "https://mrfakename-z-image-turbo.hf.space",
-  "https://ap123-illusiondiffusion.hf.space",
+// 🔥 SERWERY AI (z failover + status tracking)
+let AI_SERVERS = [
+  { url: "https://tongyi-mai-z-image-turbo.hf.space", status: "ok" },
+  { url: "https://mrfakename-z-image-turbo.hf.space", status: "ok" },
+  { url: "https://ap123-illusiondiffusion.hf.space", status: "ok" },
 ];
+
+// 💾 CACHE (w pamięci edge function instance)
+const cache: Record<string, string> = {};
+
+// 🧠 wybór działającego serwera
+function getWorkingServer() {
+  const working = AI_SERVERS.filter(s => s.status === "ok");
+  if (working.length === 0) {
+    // reset all servers if all down
+    AI_SERVERS = AI_SERVERS.map(s => ({ ...s, status: "ok" }));
+    return AI_SERVERS[0];
+  }
+  return working[Math.floor(Math.random() * working.length)];
+}
+
+// ❌ oznacz jako padnięty
+function markAsDown(url: string) {
+  AI_SERVERS = AI_SERVERS.map(s =>
+    s.url === url ? { ...s, status: "down" } : s
+  );
+}
+
+// 🔁 główna funkcja AI z cache + failover
+async function generateWithHF(prompt: string): Promise<string> {
+  // 💾 CACHE HIT
+  if (cache[prompt]) {
+    console.log("💾 Cache hit:", prompt.slice(0, 40));
+    return cache[prompt];
+  }
+
+  for (let i = 0; i < AI_SERVERS.length; i++) {
+    const server = getWorkingServer();
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+
+      const res = await fetch(`${server.url}/run/predict`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          data: [prompt, 768, "1:1", null, 15, 3],
+        }),
+      });
+
+      clearTimeout(timeout);
+
+      const data = await res.json() as { data?: string[] };
+      if (data?.data?.[0]) {
+        cache[prompt] = data.data[0]; // zapis do cache
+        return data.data[0];
+      }
+
+      markAsDown(server.url);
+    } catch (err) {
+      console.log(`❌ AI padło: ${server.url}`, err);
+      markAsDown(server.url);
+    }
+  }
+
+  throw new Error("All HF AI servers offline");
+}
 
 async function callLocalSD(sdUrl: string, endpoint: string, body: Record<string, unknown>): Promise<unknown> {
   const url = `${sdUrl.replace(/\/$/, "")}${endpoint}`;
@@ -27,32 +89,6 @@ async function callLocalSD(sdUrl: string, endpoint: string, body: Record<string,
   return await res.json();
 }
 
-async function tryHFServers(prompt: string): Promise<string> {
-  for (const server of AI_SERVERS) {
-    try {
-      const controller = new AbortController();
-      setTimeout(() => controller.abort(), 15000);
-
-      const res = await fetch(`${server}/run/predict`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          data: [prompt, 768, "1:1", null, 15, 3],
-        }),
-        signal: controller.signal,
-      });
-
-      const data = await res.json() as { data?: string[] };
-      if (data?.data?.[0]) {
-        return data.data[0];
-      }
-    } catch (err) {
-      console.log(`❌ HF server failed: ${server}`, err);
-    }
-  }
-  throw new Error("All HF AI servers offline");
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -67,12 +103,17 @@ serve(async (req) => {
       case "generate": {
         if (!prompt) throw new Error("Prompt is required");
         if (hasLocalSD) {
-          const data = await callLocalSD(SD_URL, "/sdapi/v1/txt2img", {
-            prompt, steps: 20, width: 512, height: 512,
-          }) as { images: string[] };
-          imageResult = `data:image/png;base64,${data.images[0]}`;
+          try {
+            const data = await callLocalSD(SD_URL, "/sdapi/v1/txt2img", {
+              prompt, steps: 20, width: 512, height: 512,
+            }) as { images: string[] };
+            imageResult = `data:image/png;base64,${data.images[0]}`;
+          } catch (sdErr) {
+            console.log("⚠️ Local SD failed, falling back to HF:", sdErr);
+            imageResult = await generateWithHF(prompt);
+          }
         } else {
-          imageResult = await tryHFServers(prompt);
+          imageResult = await generateWithHF(prompt);
         }
         break;
       }
@@ -80,12 +121,17 @@ serve(async (req) => {
         if (!prompt) throw new Error("Prompt is required");
         const fullPrompt = `person holding product ${prompt}, studio lighting, realistic, advertisement, high quality`;
         if (hasLocalSD) {
-          const data = await callLocalSD(SD_URL, "/sdapi/v1/txt2img", {
-            prompt: fullPrompt, steps: 25, width: 512, height: 512,
-          }) as { images: string[] };
-          imageResult = `data:image/png;base64,${data.images[0]}`;
+          try {
+            const data = await callLocalSD(SD_URL, "/sdapi/v1/txt2img", {
+              prompt: fullPrompt, steps: 25, width: 512, height: 512,
+            }) as { images: string[] };
+            imageResult = `data:image/png;base64,${data.images[0]}`;
+          } catch (sdErr) {
+            console.log("⚠️ Local SD failed, falling back to HF:", sdErr);
+            imageResult = await generateWithHF(fullPrompt);
+          }
         } else {
-          imageResult = await tryHFServers(fullPrompt);
+          imageResult = await generateWithHF(fullPrompt);
         }
         break;
       }
