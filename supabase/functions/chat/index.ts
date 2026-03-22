@@ -178,6 +178,51 @@ function transformClaudeStream(body: ReadableStream<Uint8Array>): ReadableStream
   });
 }
 
+// Transform Gemini SSE stream to OpenAI-compatible SSE stream
+function transformGeminiStream(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buffer = "";
+
+  return new ReadableStream({
+    async pull(controller) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+          return;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        let newlineIndex: number;
+        while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+          const line = buffer.slice(0, newlineIndex).trim();
+          buffer = buffer.slice(newlineIndex + 1);
+
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6);
+          if (!jsonStr) continue;
+
+          try {
+            const event = JSON.parse(jsonStr);
+            const text = event.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) {
+              const openAIChunk = {
+                choices: [{ delta: { content: text } }],
+              };
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(openAIChunk)}\n\n`));
+            }
+          } catch {
+            // skip
+          }
+        }
+      }
+    },
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
