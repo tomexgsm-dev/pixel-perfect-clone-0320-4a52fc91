@@ -8,6 +8,7 @@ export const AI_MODELS = [
   { id: "mistral", name: "Mistral", icon: "🔵", color: "text-blue-400" },
   { id: "claude", name: "Claude", icon: "🟣", color: "text-purple-400" },
   { id: "llama", name: "Llama", icon: "🟠", color: "text-orange-400" },
+  { id: "groq", name: "Groq", icon: "⚡", color: "text-yellow-400" },
 ] as const;
 
 export type AIModelId = typeof AI_MODELS[number]["id"];
