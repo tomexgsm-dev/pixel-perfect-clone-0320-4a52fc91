@@ -116,37 +116,47 @@ serve(async (req) => {
       }
       case "upscale": {
         if (!image) throw new Error("Image is required");
-        if (!SD_URL) throw new Error("Upscale requires local SD");
-        const data = await callLocalSD(SD_URL, "/sdapi/v1/extra-single-image", {
-          image: image.startsWith("data:") ? image.split(",")[1] : image,
-          upscaler_1: "R-ESRGAN 4x+",
-          upscaling_resize: 4,
-        }) as { image: string };
-        imageResult = `data:image/png;base64,${data.image}`;
+        if (SD_URL) {
+          const data = await callLocalSD(SD_URL, "/sdapi/v1/extra-single-image", {
+            image: image.startsWith("data:") ? image.split(",")[1] : image,
+            upscaler_1: "R-ESRGAN 4x+",
+            upscaling_resize: 4,
+          }) as { image: string };
+          imageResult = `data:image/png;base64,${data.image}`;
+        } else {
+          // Fallback: ask AI to upscale/enhance
+          imageResult = await tryLovableAI(`Upscale and enhance this image to higher resolution with sharper details. Image URL: ${image}`);
+        }
         break;
       }
       case "coloring": {
         if (!image) throw new Error("Image is required");
-        if (!SD_URL) throw new Error("Coloring requires local SD");
-        const imgBase64 = image.startsWith("data:") ? image.split(",")[1] : image;
-        const data = await callLocalSD(SD_URL, "/sdapi/v1/img2img", {
-          init_images: [imgBase64],
-          prompt: "clean line art coloring book page, black outlines on white background, no shading, no color",
-          steps: 20, denoising_strength: 0.75, width: 512, height: 512,
-        }) as { images: string[] };
-        imageResult = `data:image/png;base64,${data.images[0]}`;
+        if (SD_URL) {
+          const imgBase64 = image.startsWith("data:") ? image.split(",")[1] : image;
+          const data = await callLocalSD(SD_URL, "/sdapi/v1/img2img", {
+            init_images: [imgBase64],
+            prompt: "clean line art coloring book page, black outlines on white background, no shading, no color",
+            steps: 20, denoising_strength: 0.75, width: 512, height: 512,
+          }) as { images: string[] };
+          imageResult = `data:image/png;base64,${data.images[0]}`;
+        } else {
+          imageResult = await tryLovableAI(`Convert this image into a clean line art coloring book page with black outlines on white background, no shading, no color. Image URL: ${image}`);
+        }
         break;
       }
       case "enhance": {
         if (!image) throw new Error("Image is required");
-        if (!SD_URL) throw new Error("Enhance requires local SD");
-        const imgBase64 = image.startsWith("data:") ? image.split(",")[1] : image;
-        const data = await callLocalSD(SD_URL, "/sdapi/v1/img2img", {
-          init_images: [imgBase64],
-          prompt: "high quality, sharp, detailed, HDR, enhanced colors, professional photo",
-          steps: 25, denoising_strength: 0.35, width: 512, height: 512,
-        }) as { images: string[] };
-        imageResult = `data:image/png;base64,${data.images[0]}`;
+        if (SD_URL) {
+          const imgBase64 = image.startsWith("data:") ? image.split(",")[1] : image;
+          const data = await callLocalSD(SD_URL, "/sdapi/v1/img2img", {
+            init_images: [imgBase64],
+            prompt: "high quality, sharp, detailed, HDR, enhanced colors, professional photo",
+            steps: 25, denoising_strength: 0.35, width: 512, height: 512,
+          }) as { images: string[] };
+          imageResult = `data:image/png;base64,${data.images[0]}`;
+        } else {
+          imageResult = await tryLovableAI(`Enhance this image: make it high quality, sharp, detailed, HDR, with enhanced colors like a professional photo. Image URL: ${image}`);
+        }
         break;
       }
       default:
