@@ -84,6 +84,31 @@ async function callClaude(config: any, messages: any[], systemPrompt: string) {
   return response;
 }
 
+async function callGemini(config: any, messages: any[], systemPrompt: string) {
+  // Convert OpenAI message format to Gemini format
+  const contents = messages.map((m: any) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: typeof m.content === "string"
+      ? [{ text: m.content }]
+      : m.content.map((c: any) => {
+          if (c.type === "text") return { text: c.text };
+          if (c.type === "image_url") return { text: `[Image: ${c.image_url.url}]` };
+          return { text: "" };
+        }),
+  }));
+
+  const response = await fetch(config.url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents,
+    }),
+  });
+
+  return response;
+}
+
 async function callOpenAICompatible(config: any, messages: any[], systemPrompt: string) {
   const response = await fetch(config.url, {
     method: "POST",
