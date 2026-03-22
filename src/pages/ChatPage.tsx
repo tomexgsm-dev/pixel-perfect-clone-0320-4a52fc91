@@ -65,6 +65,7 @@ export default function ChatPage() {
 
   const { sendMessage, isStreaming, streamingMessage, streamError } = useChatStream(conversationId);
   const [input, setInput] = useState("");
+  const [selectedModel, setSelectedModel] = useState<AIModelId>("gemini");
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
