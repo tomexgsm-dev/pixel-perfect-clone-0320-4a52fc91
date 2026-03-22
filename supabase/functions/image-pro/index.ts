@@ -5,74 +5,58 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// 🔥 Multi-AI: HuggingFace Spaces (Gradio API)
-const AI_SERVERS = [
-  { url: "https://tongyi-mai-z-image-turbo.hf.space", status: "ok" },
-  { url: "https://mrfakename-z-image-turbo.hf.space", status: "ok" },
-  { url: "https://ap123-illusiondiffusion.hf.space", status: "ok" },
+// 🔥 Multi-AI: Lovable AI models (no API key needed from user)
+const AI_MODELS = [
+  "google/gemini-3.1-flash-image-preview",
+  "google/gemini-3-pro-image-preview",
 ];
 
-// Clone state per request to avoid shared mutation issues in edge functions
-function createServerPool() {
-  return AI_SERVERS.map(s => ({ ...s }));
-}
+async function tryLovableAI(prompt: string): Promise<string> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-function getWorkingServer(pool: typeof AI_SERVERS) {
-  const working = pool.filter(s => s.status === "ok");
-  if (working.length === 0) {
-    pool.forEach(s => s.status = "ok");
-    return pool[0];
-  }
-  return working[Math.floor(Math.random() * working.length)];
-}
-
-function markAsDown(pool: typeof AI_SERVERS, url: string) {
-  const s = pool.find(s => s.url === url);
-  if (s) s.status = "down";
-}
-
-async function tryMultiAI(prompt: string): Promise<string> {
-  const pool = createServerPool();
-
-  for (let i = 0; i < pool.length; i++) {
-    const server = getWorkingServer(pool);
+  for (const model of AI_MODELS) {
     try {
       const controller = new AbortController();
-      setTimeout(() => controller.abort(), 15000);
+      setTimeout(() => controller.abort(), 30000);
 
-      const res = await fetch(`${server.url}/run/predict`, {
+      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          data: [prompt, 768, "1:1", null, 15, 3],
+          model,
+          messages: [{ role: "user", content: prompt }],
+          modalities: ["image", "text"],
         }),
         signal: controller.signal,
       });
 
       if (!res.ok) {
-        console.log(`❌ AI ${res.status}:`, server.url);
-        markAsDown(pool, server.url);
+        console.log(`❌ Model ${model} returned ${res.status}`);
         continue;
       }
 
       const data = await res.json();
+      const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
 
-      if (data?.data?.[0]) {
-        console.log("✅ AI OK:", server.url);
-        return data.data[0]; // base64 or URL from Gradio
+      if (imageUrl) {
+        console.log(`✅ AI OK: ${model}`);
+        return imageUrl;
       }
 
-      markAsDown(pool, server.url);
+      console.log(`❌ Model ${model}: no image in response`);
     } catch (err) {
-      console.log("❌ AI padło:", server.url, err);
-      markAsDown(pool, server.url);
+      console.log(`❌ Model ${model} error:`, err);
     }
   }
 
-  throw new Error("Wszystkie serwery AI offline");
+  throw new Error("All AI models failed");
 }
 
-// --- Fallback: local SD API (if SD_LOCAL_URL is set) ---
+// --- Fallback: local SD API ---
 async function callLocalSD(sdUrl: string, endpoint: string, body: Record<string, unknown>): Promise<unknown> {
   const url = `${sdUrl.replace(/\/$/, "")}${endpoint}`;
   const res = await fetch(url, {
@@ -87,34 +71,30 @@ async function callLocalSD(sdUrl: string, endpoint: string, body: Record<string,
   return await res.json();
 }
 
+function getValidSdUrl(): string | null {
+  const raw = Deno.env.get("SD_LOCAL_URL");
+  return raw && raw.startsWith("http") ? raw : null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const { action, prompt, image } = await req.json();
-    const rawSdUrl = Deno.env.get("SD_LOCAL_URL");
-    const SD_URL = rawSdUrl && rawSdUrl.startsWith("http") ? rawSdUrl : null;
-    if (rawSdUrl && !SD_URL) {
-      console.warn("SD_LOCAL_URL is not a valid URL (starts with:", rawSdUrl.substring(0, 10) + "...)");
-    }
+    const SD_URL = getValidSdUrl();
 
     let imageResult: string;
 
     switch (action) {
       case "generate": {
         if (!prompt) throw new Error("Prompt is required");
-
-        // 🔥 Try multi-AI (HF Spaces) first, then fall back to local SD
         try {
-          imageResult = await tryMultiAI(prompt);
-        } catch (multiErr) {
-          console.log("Multi-AI failed, trying local SD...", multiErr);
-          if (!SD_URL) throw new Error("All AI servers offline and no local SD configured");
+          imageResult = await tryLovableAI(prompt);
+        } catch (aiErr) {
+          console.log("Lovable AI failed, trying local SD...", aiErr);
+          if (!SD_URL) throw new Error("All AI offline");
           const data = await callLocalSD(SD_URL, "/sdapi/v1/txt2img", {
-            prompt,
-            steps: 20,
-            width: 512,
-            height: 512,
+            prompt, steps: 20, width: 512, height: 512,
           }) as { images: string[] };
           imageResult = `data:image/png;base64,${data.images[0]}`;
         }
@@ -123,16 +103,12 @@ serve(async (req) => {
       case "product": {
         if (!prompt) throw new Error("Prompt is required");
         const fullPrompt = `person holding product ${prompt}, studio lighting, realistic, advertisement, high quality`;
-
         try {
-          imageResult = await tryMultiAI(fullPrompt);
+          imageResult = await tryLovableAI(fullPrompt);
         } catch {
-          if (!SD_URL) throw new Error("All AI servers offline");
+          if (!SD_URL) throw new Error("All AI offline");
           const data = await callLocalSD(SD_URL, "/sdapi/v1/txt2img", {
-            prompt: fullPrompt,
-            steps: 25,
-            width: 512,
-            height: 512,
+            prompt: fullPrompt, steps: 25, width: 512, height: 512,
           }) as { images: string[] };
           imageResult = `data:image/png;base64,${data.images[0]}`;
         }
@@ -156,10 +132,7 @@ serve(async (req) => {
         const data = await callLocalSD(SD_URL, "/sdapi/v1/img2img", {
           init_images: [imgBase64],
           prompt: "clean line art coloring book page, black outlines on white background, no shading, no color",
-          steps: 20,
-          denoising_strength: 0.75,
-          width: 512,
-          height: 512,
+          steps: 20, denoising_strength: 0.75, width: 512, height: 512,
         }) as { images: string[] };
         imageResult = `data:image/png;base64,${data.images[0]}`;
         break;
@@ -171,10 +144,7 @@ serve(async (req) => {
         const data = await callLocalSD(SD_URL, "/sdapi/v1/img2img", {
           init_images: [imgBase64],
           prompt: "high quality, sharp, detailed, HDR, enhanced colors, professional photo",
-          steps: 25,
-          denoising_strength: 0.35,
-          width: 512,
-          height: 512,
+          steps: 25, denoising_strength: 0.35, width: 512, height: 512,
         }) as { images: string[] };
         imageResult = `data:image/png;base64,${data.images[0]}`;
         break;
