@@ -309,7 +309,7 @@ export default function ChatPage() {
                     disabled={isStreaming || uploading || !canChat}
                   />
                   <SpeechSettingsPopover />
-                  <ModelSelector value={selectedModel} onChange={setSelectedModel} disabled={isStreaming || !canChat} />
+                  
                 </div>
                 <button
                   type="submit"
