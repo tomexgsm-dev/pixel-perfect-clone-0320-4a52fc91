@@ -5,6 +5,16 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Groq fallback config (free tier)
+function getGroqFallback() {
+  return {
+    url: "https://api.groq.com/openai/v1/chat/completions",
+    key: Deno.env.get("GROQ_KEY"),
+    model: "llama-3.3-70b-versatile",
+    type: "openai" as const,
+  };
+}
+
 // Model ID → provider config
 function getProviderConfig(model: string) {
   switch (model) {
@@ -43,6 +53,8 @@ function getProviderConfig(model: string) {
         model: "gemini-2.0-flash",
         type: "gemini" as const,
       };
+    case "groq":
+      return getGroqFallback();
     default:
       return {
         url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=${Deno.env.get("GEMINI_KEY")}`,
@@ -65,7 +77,7 @@ async function callClaude(config: any, messages: any[], systemPrompt: string) {
       }),
     }));
 
-  const response = await fetch(config.url, {
+  return await fetch(config.url, {
     method: "POST",
     headers: {
       "x-api-key": config.key,
@@ -80,12 +92,9 @@ async function callClaude(config: any, messages: any[], systemPrompt: string) {
       stream: true,
     }),
   });
-
-  return response;
 }
 
 async function callGemini(config: any, messages: any[], systemPrompt: string) {
-  // Convert OpenAI message format to Gemini format
   const contents = messages.map((m: any) => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: typeof m.content === "string"
@@ -97,7 +106,7 @@ async function callGemini(config: any, messages: any[], systemPrompt: string) {
         }),
   }));
 
-  const response = await fetch(config.url, {
+  return await fetch(config.url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -105,12 +114,10 @@ async function callGemini(config: any, messages: any[], systemPrompt: string) {
       contents,
     }),
   });
-
-  return response;
 }
 
 async function callOpenAICompatible(config: any, messages: any[], systemPrompt: string) {
-  const response = await fetch(config.url, {
+  return await fetch(config.url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${config.key}`,
@@ -125,8 +132,12 @@ async function callOpenAICompatible(config: any, messages: any[], systemPrompt: 
       stream: true,
     }),
   });
+}
 
-  return response;
+async function callModel(config: any, messages: any[], system: string): Promise<Response> {
+  if (config.type === "claude") return callClaude(config, messages, system);
+  if (config.type === "gemini") return callGemini(config, messages, system);
+  return callOpenAICompatible(config, messages, system);
 }
 
 // Transform Claude SSE stream to OpenAI-compatible SSE stream
@@ -223,6 +234,16 @@ function transformGeminiStream(body: ReadableStream<Uint8Array>): ReadableStream
   });
 }
 
+function getOutputStream(config: any, response: Response) {
+  let outputBody = response.body;
+  if (config.type === "claude" && response.body) {
+    outputBody = transformClaudeStream(response.body);
+  } else if (config.type === "gemini" && response.body) {
+    outputBody = transformGeminiStream(response.body);
+  }
+  return outputBody;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -236,35 +257,58 @@ serve(async (req) => {
     console.log("Selected model:", selectedModel, "→", config.model);
 
     if (!config.key) {
+      // No key for selected model — try Groq fallback
+      const groq = getGroqFallback();
+      if (groq.key) {
+        console.log("⚡ No key for", selectedModel, "→ Groq fallback");
+        const response = await callOpenAICompatible(groq, messages, system);
+        if (response.ok) {
+          return new Response(response.body, {
+            headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+          });
+        }
+      }
       return new Response(JSON.stringify({ error: `API key not configured for ${selectedModel}` }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    let response: Response;
+    let response = await callModel(config, messages, system);
 
-    if (config.type === "claude") {
-      response = await callClaude(config, messages, system);
-    } else if (config.type === "gemini") {
-      response = await callGemini(config, messages, system);
-    } else {
-      response = await callOpenAICompatible(config, messages, system);
-    }
+    // If primary model fails, try Groq fallback
+    if (!response.ok && selectedModel !== "groq") {
+      const errText = await response.text();
+      console.error(`❌ ${selectedModel} failed (${response.status}):`, errText);
 
-    if (!response.ok) {
+      const groq = getGroqFallback();
+      if (groq.key) {
+        console.log("⚡ Falling back to Groq (llama-3.3-70b-versatile)");
+        const fallbackResponse = await callOpenAICompatible(groq, messages, system);
+        if (fallbackResponse.ok) {
+          return new Response(fallbackResponse.body, {
+            headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+          });
+        }
+        // Groq also failed
+        const groqErr = await fallbackResponse.text();
+        console.error("❌ Groq fallback also failed:", fallbackResponse.status, groqErr);
+      }
+
+      // Return original error
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
           status: 429,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Credits exhausted. Please add funds." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      return new Response(JSON.stringify({ error: `AI error from ${selectedModel}: ${response.status}` }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!response.ok) {
       const t = await response.text();
       console.error("AI error:", response.status, t);
       return new Response(JSON.stringify({ error: `AI error from ${selectedModel}: ${response.status}` }), {
@@ -273,15 +317,7 @@ serve(async (req) => {
       });
     }
 
-    // Transform non-OpenAI streams to OpenAI-compatible format
-    let outputBody = response.body;
-    if (config.type === "claude" && response.body) {
-      outputBody = transformClaudeStream(response.body);
-    } else if (config.type === "gemini" && response.body) {
-      outputBody = transformGeminiStream(response.body);
-    }
-
-    return new Response(outputBody, {
+    return new Response(getOutputStream(config, response), {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (e) {
