@@ -38,18 +38,17 @@ function getProviderConfig(model: string) {
       };
     case "gemini":
       return {
-        url: "https://ai.gateway.lovable.dev/v1/chat/completions",
-        key: Deno.env.get("LOVABLE_API_KEY"),
-        model: "google/gemini-2.5-flash",
-        type: "openai" as const,
+        url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=${Deno.env.get("GEMINI_KEY")}`,
+        key: Deno.env.get("GEMINI_KEY"),
+        model: "gemini-2.0-flash",
+        type: "gemini" as const,
       };
     default:
-      // Default: Lovable AI Gateway with random Gemini model
       return {
-        url: "https://ai.gateway.lovable.dev/v1/chat/completions",
-        key: Deno.env.get("LOVABLE_API_KEY"),
-        model: "google/gemini-2.5-flash",
-        type: "openai" as const,
+        url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=${Deno.env.get("GEMINI_KEY")}`,
+        key: Deno.env.get("GEMINI_KEY"),
+        model: "gemini-2.0-flash",
+        type: "gemini" as const,
       };
   }
 }
