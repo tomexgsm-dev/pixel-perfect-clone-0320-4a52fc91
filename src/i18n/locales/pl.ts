@@ -77,6 +77,7 @@ export const pl = {
     removeAttachment: "Usuń załącznik",
     attachmentTooLarge: "Plik jest za duży (maks. 10MB)",
     dropFile: "Upuść plik tutaj",
+    selectModel: "Wybierz model AI",
   },
   images: {
     title: "Generowanie obrazów AI",
