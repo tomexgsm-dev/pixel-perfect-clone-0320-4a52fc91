@@ -77,6 +77,7 @@ export const en = {
     removeAttachment: "Remove attachment",
     attachmentTooLarge: "File is too large (max 10MB)",
     dropFile: "Drop file here",
+    selectModel: "Select AI model",
   },
   images: {
     title: "AI Image Generation",

@@ -5,49 +5,181 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const MODELS = [
-  "google/gemini-3-flash-preview",
-  "google/gemini-2.5-flash",
-  "google/gemini-2.5-flash-lite",
-];
-
-const VISION_MODEL = "google/gemini-2.5-flash";
-
-function pickRandomModel() {
-  return MODELS[Math.floor(Math.random() * MODELS.length)];
+// Model ID → provider config
+function getProviderConfig(model: string) {
+  switch (model) {
+    case "deepseek":
+      return {
+        url: "https://api.deepseek.com/v1/chat/completions",
+        key: Deno.env.get("DEEPSEEK_KEY"),
+        model: "deepseek-chat",
+        type: "openai" as const,
+      };
+    case "mistral":
+      return {
+        url: "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3/v1/chat/completions",
+        key: Deno.env.get("HF_KEY"),
+        model: "mistralai/Mistral-7B-Instruct-v0.3",
+        type: "openai" as const,
+      };
+    case "claude":
+      return {
+        url: "https://api.anthropic.com/v1/messages",
+        key: Deno.env.get("CLAUDE_KEY"),
+        model: "claude-3-sonnet-20240229",
+        type: "claude" as const,
+      };
+    case "llama":
+      return {
+        url: "https://api.together.xyz/v1/chat/completions",
+        key: Deno.env.get("TOGETHER_KEY"),
+        model: "meta-llama/Llama-3-70b-chat-hf",
+        type: "openai" as const,
+      };
+    case "gemini":
+      return {
+        url: "https://ai.gateway.lovable.dev/v1/chat/completions",
+        key: Deno.env.get("LOVABLE_API_KEY"),
+        model: "google/gemini-2.5-flash",
+        type: "openai" as const,
+      };
+    default:
+      // Default: Lovable AI Gateway with random Gemini model
+      return {
+        url: "https://ai.gateway.lovable.dev/v1/chat/completions",
+        key: Deno.env.get("LOVABLE_API_KEY"),
+        model: "google/gemini-2.5-flash",
+        type: "openai" as const,
+      };
+  }
 }
 
-function hasImages(messages: any[]): boolean {
-  return messages.some((m: any) => Array.isArray(m.content) && m.content.some((c: any) => c.type === "image_url"));
+async function callClaude(config: any, messages: any[], systemPrompt: string) {
+  const claudeMessages = messages
+    .filter((m: any) => m.role !== "system")
+    .map((m: any) => ({
+      role: m.role === "user" ? "user" : "assistant",
+      content: typeof m.content === "string" ? m.content : m.content.map((c: any) => {
+        if (c.type === "text") return { type: "text", text: c.text };
+        if (c.type === "image_url") return { type: "image", source: { type: "url", url: c.image_url.url } };
+        return c;
+      }),
+    }));
+
+  const response = await fetch(config.url, {
+    method: "POST",
+    headers: {
+      "x-api-key": config.key,
+      "anthropic-version": "2023-06-01",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.model,
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: claudeMessages,
+      stream: true,
+    }),
+  });
+
+  return response;
+}
+
+async function callOpenAICompatible(config: any, messages: any[], systemPrompt: string) {
+  const response = await fetch(config.url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...messages,
+      ],
+      stream: true,
+    }),
+  });
+
+  return response;
+}
+
+// Transform Claude SSE stream to OpenAI-compatible SSE stream
+function transformClaudeStream(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buffer = "";
+
+  return new ReadableStream({
+    async pull(controller) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+          return;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        let newlineIndex: number;
+        while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+          const line = buffer.slice(0, newlineIndex).trim();
+          buffer = buffer.slice(newlineIndex + 1);
+
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6);
+          if (!jsonStr) continue;
+
+          try {
+            const event = JSON.parse(jsonStr);
+            if (event.type === "content_block_delta" && event.delta?.text) {
+              const openAIChunk = {
+                choices: [{ delta: { content: event.delta.text } }],
+              };
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(openAIChunk)}\n\n`));
+            }
+            if (event.type === "message_stop") {
+              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+              controller.close();
+              return;
+            }
+          } catch {
+            // skip
+          }
+        }
+      }
+    },
+  });
 }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, systemPrompt } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
-
+    const { messages, systemPrompt, model } = await req.json();
     const defaultSystem = "You are Nexus AI, an intelligent and helpful assistant. Answer clearly and concisely. Write in the user's language.";
-    const selectedModel = hasImages(messages) ? VISION_MODEL : pickRandomModel();
-    console.log("Selected model:", selectedModel);
+    const system = systemPrompt || defaultSystem;
+    const selectedModel = model || "gemini";
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: selectedModel,
-        messages: [
-          { role: "system", content: systemPrompt || defaultSystem },
-          ...messages,
-        ],
-        stream: true,
-      }),
-    });
+    const config = getProviderConfig(selectedModel);
+    console.log("Selected model:", selectedModel, "→", config.model);
+
+    if (!config.key) {
+      return new Response(JSON.stringify({ error: `API key not configured for ${selectedModel}` }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    let response: Response;
+
+    if (config.type === "claude") {
+      response = await callClaude(config, messages, system);
+    } else {
+      response = await callOpenAICompatible(config, messages, system);
+    }
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -63,14 +195,19 @@ serve(async (req) => {
         });
       }
       const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
-      return new Response(JSON.stringify({ error: "AI gateway error" }), {
+      console.error("AI error:", response.status, t);
+      return new Response(JSON.stringify({ error: `AI error from ${selectedModel}: ${response.status}` }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(response.body, {
+    // For Claude, transform the stream to OpenAI-compatible format
+    const outputBody = config.type === "claude" && response.body
+      ? transformClaudeStream(response.body)
+      : response.body;
+
+    return new Response(outputBody, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (e) {

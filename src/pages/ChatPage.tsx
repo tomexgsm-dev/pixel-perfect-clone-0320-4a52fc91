@@ -14,6 +14,7 @@ import { SpeechSettingsPopover } from "@/components/SpeechSettingsPopover";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n";
 import { useSpeechSettings } from "@/hooks/use-speech-settings";
+import { ModelSelector, type AIModelId } from "@/components/ModelSelector";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
@@ -64,6 +65,7 @@ export default function ChatPage() {
 
   const { sendMessage, isStreaming, streamingMessage, streamError } = useChatStream(conversationId);
   const [input, setInput] = useState("");
+  const [selectedModel, setSelectedModel] = useState<AIModelId>("gemini");
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -139,7 +141,7 @@ export default function ChatPage() {
   const sendVoiceMessage = useCallback(async (text: string) => {
     if (!text.trim() || isStreaming || !conversationId || !canChat) return;
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-    const ok = await sendMessage(text.trim(), messages, conversation?.system_prompt, null);
+    const ok = await sendMessage(text.trim(), messages, conversation?.system_prompt, null, selectedModel);
     if (ok) {
       if (!(user && isPro)) freeLimits.decrementChat();
       queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
@@ -163,7 +165,7 @@ export default function ChatPage() {
       setUploading(false);
     }
 
-    const ok = await sendMessage(content || "📎 " + (attachmentData?.name || "attachment"), messages, conversation?.system_prompt, attachmentData);
+    const ok = await sendMessage(content || "📎 " + (attachmentData?.name || "attachment"), messages, conversation?.system_prompt, attachmentData, selectedModel);
     if (ok) {
       // Decrement free limits only for non-PRO users
       if (!(user && isPro)) freeLimits.decrementChat();
@@ -307,6 +309,7 @@ export default function ChatPage() {
                     disabled={isStreaming || uploading || !canChat}
                   />
                   <SpeechSettingsPopover />
+                  <ModelSelector value={selectedModel} onChange={setSelectedModel} disabled={isStreaming || !canChat} />
                 </div>
                 <button
                   type="submit"
