@@ -81,18 +81,30 @@ async function callLovableImage(prompt: string): Promise<string> {
 }
 
 async function callPollinations(prompt: string): Promise<string> {
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=768&nologo=true`;
+  const seed = Math.floor(Math.random() * 999999);
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=768&seed=${seed}&nologo=true&model=flux`;
   console.log("🌸 Pollinations.ai request:", url);
-  const res = await fetch(url, { signal: AbortSignal.timeout(60000) });
-  if (!res.ok) throw new Error(`Pollinations HTTP ${res.status}`);
-  const buffer = await res.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(90000), redirect: "follow" });
+    if (res.ok) {
+      const contentType = res.headers.get("content-type") || "image/jpeg";
+      const buffer = await res.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
+      return `data:${contentType};base64,${base64}`;
+    }
+    console.log(`⚠️ Pollinations server-side HTTP ${res.status}, returning direct URL`);
+  } catch (err) {
+    console.log("⚠️ Pollinations server-side fetch failed:", err);
   }
-  const base64 = btoa(binary);
-  return `data:image/jpeg;base64,${base64}`;
+  
+  // Return direct URL as last resort - browser will load it directly
+  return url;
 }
 
 async function generateWithFallback(prompt: string): Promise<string> {
