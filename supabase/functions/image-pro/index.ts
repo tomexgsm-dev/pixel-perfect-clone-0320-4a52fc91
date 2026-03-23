@@ -145,25 +145,12 @@ async function callReplicate(prompt: string) {
 /* ---------------- POLLINATIONS (FREE) ---------------- */
 
 async function callPollinations(prompt: string): Promise<string> {
-  const res = await fetch("https://text.pollinations.ai/openai", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "openai",
-      messages: [{ role: "user", content: prompt }],
-    }),
-    signal: AbortSignal.timeout(60000),
-  });
-
-  if (!res.ok) throw new Error(`Pollinations API ${res.status}`);
-
-  // Fallback: use image.pollinations.ai with redirect follow
   const seed = Math.floor(Math.random() * 999999);
   const imgUrl = `https://pollinations.ai/p/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true`;
-  const imgRes = await fetch(imgUrl, { signal: AbortSignal.timeout(60000), redirect: "follow" });
-  if (!imgRes.ok) throw new Error(`Pollinations img ${imgRes.status}`);
+  const res = await fetch(imgUrl, { signal: AbortSignal.timeout(60000), redirect: "follow" });
+  if (!res.ok) throw new Error(`Pollinations HTTP ${res.status}`);
 
-  const blob = await imgRes.blob();
+  const blob = await res.blob();
   const buffer = await blob.arrayBuffer();
   const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
   return `data:image/jpeg;base64,${base64}`;
