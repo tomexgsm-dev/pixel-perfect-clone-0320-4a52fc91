@@ -25,11 +25,9 @@ async function callLovable(prompt: string) {
 }
 
 async function callPollinations(prompt: string): Promise<string> {
-  const encoded = encodeURIComponent(prompt);
   const seed = Math.floor(Math.random() * 999999);
-  const url = `https://image.pollinations.ai/prompt/${encoded}?width=1024&height=1024&seed=${seed}&nologo=true`;
-
-  const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
+  const imgUrl = `https://pollinations.ai/p/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true`;
+  const res = await fetch(imgUrl, { signal: AbortSignal.timeout(60000), redirect: "follow" });
   if (!res.ok) throw new Error(`Pollinations HTTP ${res.status}`);
 
   const blob = await res.blob();
