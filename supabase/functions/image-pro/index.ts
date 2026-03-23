@@ -142,43 +142,27 @@ async function callReplicate(prompt: string) {
   throw new Error("Replicate timeout");
 }
 
-/* ---------------- POLLINATIONS (FREE) ---------------- */
-
-async function callPollinations(prompt: string): Promise<string> {
-  const seed = Math.floor(Math.random() * 999999);
-  const imgUrl = `https://pollinations.ai/p/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true`;
-  const res = await fetch(imgUrl, { signal: AbortSignal.timeout(60000), redirect: "follow" });
-  if (!res.ok) throw new Error(`Pollinations HTTP ${res.status}`);
-
-  const blob = await res.blob();
-  const buffer = await blob.arrayBuffer();
-  const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-  return `data:image/jpeg;base64,${base64}`;
-}
-
 /* ---------------- FALLBACK ---------------- */
 
 async function generateImage(prompt: string) {
   if (cache.has(prompt)) return cache.get(prompt)!;
 
   const hf = await callHF(prompt);
-  if (hf) { cache.set(prompt, hf); return hf; }
+
+  if (hf) {
+    cache.set(prompt, hf);
+    return hf;
+  }
 
   try {
     const lovable = await callLovable(prompt);
     if (lovable) return lovable;
-  } catch (e) { console.log("⚠️ Lovable AI failed:", e); }
+  } catch {}
 
   try {
     const rep = await callReplicate(prompt);
     if (rep) return rep;
-  } catch (e) { console.log("❌ Replicate failed:", e); }
-
-  try {
-    console.log("🌸 Falling back to Pollinations.ai...");
-    const poll = await callPollinations(prompt);
-    if (poll) return poll;
-  } catch (e) { console.log("❌ Pollinations failed:", e); }
+  } catch {}
 
   throw new HttpError(503, "All AI generators offline");
 }
