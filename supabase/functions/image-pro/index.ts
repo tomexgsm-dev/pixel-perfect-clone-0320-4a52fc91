@@ -2,17 +2,18 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 class HttpError extends Error {
   status: number;
-
   constructor(status: number, message: string) {
     super(message);
     this.status = status;
   }
 }
+
+/* ---------------- AI SERVERS ---------------- */
 
 let AI_SERVERS = [
   { url: "https://tongyi-mai-z-image-turbo.hf.space", status: "ok" },
@@ -20,33 +21,70 @@ let AI_SERVERS = [
   { url: "https://ap123-illusiondiffusion.hf.space", status: "ok" },
 ];
 
-const cache: Record<string, string> = {};
+const cache = new Map<string, string>();
 
-function getWorkingServer() {
-  const working = AI_SERVERS.filter((server) => server.status === "ok");
+function getServer() {
+  const working = AI_SERVERS.filter((s) => s.status === "ok");
 
-  if (working.length === 0) {
-    AI_SERVERS = AI_SERVERS.map((server) => ({ ...server, status: "ok" }));
+  if (!working.length) {
+    AI_SERVERS = AI_SERVERS.map((s) => ({ ...s, status: "ok" }));
     return AI_SERVERS[0];
   }
 
   return working[Math.floor(Math.random() * working.length)];
 }
 
-function markAsDown(url: string) {
-  AI_SERVERS = AI_SERVERS.map((server) =>
-    server.url === url ? { ...server, status: "down" } : server,
-  );
+function markDown(url: string) {
+  AI_SERVERS = AI_SERVERS.map((s) => (s.url === url ? { ...s, status: "down" } : s));
 }
 
-async function callLovableImage(prompt: string): Promise<string> {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) throw new HttpError(500, "LOVABLE_API_KEY is not configured");
+/* ---------------- HF SPACES ---------------- */
 
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+async function callHF(prompt: string): Promise<string | null> {
+  for (let i = 0; i < AI_SERVERS.length; i++) {
+    const server = getServer();
+
+    try {
+      const res = await fetch(`${server.url}/run/predict`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          data: [prompt, 768, "1:1", null, 15, 3],
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (!res.ok) {
+        markDown(server.url);
+        continue;
+      }
+
+      const json = await res.json();
+
+      const img = json?.data?.[0];
+
+      if (img) return img;
+
+      markDown(server.url);
+    } catch {
+      markDown(server.url);
+    }
+  }
+
+  return null;
+}
+
+/* ---------------- LOVABLE GEMINI ---------------- */
+
+async function callLovable(prompt: string) {
+  const KEY = Deno.env.get("LOVABLE_API_KEY");
+
+  if (!KEY) throw new HttpError(500, "LOVABLE_API_KEY missing");
+
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      Authorization: `Bearer ${KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -56,284 +94,119 @@ async function callLovableImage(prompt: string): Promise<string> {
     }),
   });
 
-  if (!response.ok) {
-    if (response.status === 429) {
-      throw new HttpError(429, "Rate limit exceeded. Please try again later.");
-    }
-    if (response.status === 402) {
-      throw new HttpError(402, "Credits exhausted. Please add funds.");
-    }
+  if (!res.ok) throw new Error("Lovable failed");
 
-    const errorText = await response.text();
-    console.error("Lovable AI image error:", response.status, errorText);
-    throw new HttpError(500, "Image generation failed");
-  }
+  const data = await res.json();
 
-  const data = await response.json();
-  const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-
-  if (!imageUrl) {
-    console.error("Lovable AI image response missing image:", data);
-    throw new HttpError(500, "No image generated");
-  }
-
-  return imageUrl;
+  return data?.choices?.[0]?.message?.images?.[0]?.image_url?.url;
 }
 
-async function callReplicate(prompt: string): Promise<string> {
-  const REPLICATE_API = Deno.env.get("REPLICATE_API");
-  if (!REPLICATE_API) throw new Error("REPLICATE_API not configured");
+/* ---------------- REPLICATE ---------------- */
 
-  console.log("🎯 Replicate request for:", prompt.slice(0, 50));
+async function callReplicate(prompt: string) {
+  const API = Deno.env.get("REPLICATE_API");
 
-  // Start prediction with FLUX schnell (fast, free tier eligible)
-  const createRes = await fetch("https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions", {
+  if (!API) throw new Error("REPLICATE_API missing");
+
+  const create = await fetch("https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${REPLICATE_API}`,
+      Authorization: `Bearer ${API}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      input: { prompt, go_fast: true, num_outputs: 1, aspect_ratio: "1:1", output_format: "jpg", output_quality: 80 },
+      input: {
+        prompt,
+        go_fast: true,
+        num_outputs: 1,
+      },
     }),
   });
 
-  if (!createRes.ok) {
-    const errText = await createRes.text();
-    console.error("Replicate create error:", createRes.status, errText);
-    throw new Error(`Replicate HTTP ${createRes.status}`);
-  }
+  const prediction = await create.json();
 
-  let prediction = await createRes.json();
-
-  // Poll for completion (max 60s)
   for (let i = 0; i < 30; i++) {
-    if (prediction.status === "succeeded") break;
-    if (prediction.status === "failed" || prediction.status === "canceled") {
-      throw new Error(`Replicate prediction ${prediction.status}`);
-    }
-    await new Promise(r => setTimeout(r, 2000));
-    const pollRes = await fetch(prediction.urls.get, {
-      headers: { Authorization: `Bearer ${REPLICATE_API}` },
+    await new Promise((r) => setTimeout(r, 2000));
+
+    const poll = await fetch(prediction.urls.get, {
+      headers: { Authorization: `Bearer ${API}` },
     });
-    prediction = await pollRes.json();
+
+    const data = await poll.json();
+
+    if (data.status === "succeeded") return data.output[0];
+
+    if (data.status === "failed") break;
   }
 
-  if (prediction.status !== "succeeded" || !prediction.output?.[0]) {
-    throw new Error("Replicate: no output");
-  }
-
-  return prediction.output[0]; // Returns a URL
+  throw new Error("Replicate timeout");
 }
 
-async function generateWithFallback(prompt: string): Promise<string> {
-  if (cache[prompt]) {
-    console.log("💾 Cache hit:", prompt.slice(0, 40));
-    return cache[prompt];
+/* ---------------- FALLBACK ---------------- */
+
+async function generateImage(prompt: string) {
+  if (cache.has(prompt)) return cache.get(prompt)!;
+
+  const hf = await callHF(prompt);
+
+  if (hf) {
+    cache.set(prompt, hf);
+    return hf;
   }
 
-  // 1. Try HF Spaces
-  for (let i = 0; i < AI_SERVERS.length; i++) {
-    const server = getWorkingServer();
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-
-    try {
-      const res = await fetch(`${server.url}/run/predict`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
-        body: JSON.stringify({
-          data: [prompt, 768, "1:1", null, 15, 3],
-        }),
-      });
-
-      const rawText = await res.text();
-
-      if (!res.ok) {
-        console.log(`❌ HF server HTTP ${res.status}: ${server.url}`, rawText.slice(0, 200));
-        markAsDown(server.url);
-        continue;
-      }
-
-      let data: { data?: string[] };
-      try {
-        data = JSON.parse(rawText) as { data?: string[] };
-      } catch (parseError) {
-        console.log(`❌ HF invalid JSON: ${server.url}`, parseError, rawText.slice(0, 200));
-        markAsDown(server.url);
-        continue;
-      }
-
-      if (data?.data?.[0]) {
-        cache[prompt] = data.data[0];
-        return data.data[0];
-      }
-
-      markAsDown(server.url);
-    } catch (err) {
-      console.log(`❌ HF request failed: ${server.url}`, err);
-      markAsDown(server.url);
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-
-  // 2. Try Lovable AI (Gemini)
   try {
-    console.log("⚠️ All HF offline, trying Lovable AI...");
-    const imageUrl = await callLovableImage(prompt);
-    cache[prompt] = imageUrl;
-    return imageUrl;
-  } catch (lovableErr) {
-    console.log("⚠️ Lovable AI failed:", lovableErr);
-  }
+    const lovable = await callLovable(prompt);
+    if (lovable) return lovable;
+  } catch {}
 
-  // 3. Replicate (FLUX schnell)
   try {
-    console.log("🎯 Using Replicate fallback");
-    const replicateUrl = await callReplicate(prompt);
-    cache[prompt] = replicateUrl;
-    return replicateUrl;
-  } catch (repErr) {
-    console.log("❌ Replicate failed:", repErr);
-  }
+    const rep = await callReplicate(prompt);
+    if (rep) return rep;
+  } catch {}
 
-  throw new HttpError(503, "All image generation backends are currently unavailable");
+  throw new HttpError(503, "All AI generators offline");
 }
 
-async function callLocalSD(sdUrl: string, endpoint: string, body: Record<string, unknown>): Promise<unknown> {
-  const url = `${sdUrl.replace(/\/$/, "")}${endpoint}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(60000),
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`SD API error ${res.status}: ${errorText}`);
-  }
-
-  return await res.json();
-}
+/* ---------------- MAIN ---------------- */
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const SD_URL = Deno.env.get("SD_LOCAL_URL");
-    const hasLocalSD = typeof SD_URL === "string" && SD_URL.startsWith("http");
-
     const { action, prompt, image } = await req.json();
-    let imageResult: string;
+
+    let result: string;
 
     switch (action) {
-      case "generate": {
-        if (!prompt) throw new HttpError(400, "Prompt is required");
-
-        if (hasLocalSD) {
-          try {
-            const data = await callLocalSD(SD_URL, "/sdapi/v1/txt2img", {
-              prompt,
-              steps: 20,
-              width: 512,
-              height: 512,
-            }) as { images: string[] };
-            imageResult = `data:image/png;base64,${data.images[0]}`;
-          } catch (sdErr) {
-            console.log("⚠️ Local SD failed, falling back:", sdErr);
-            imageResult = await generateWithFallback(prompt);
-          }
-        } else {
-          imageResult = await generateWithFallback(prompt);
-        }
+      case "generate":
+        if (!prompt) throw new HttpError(400, "Prompt required");
+        result = await generateImage(prompt);
         break;
-      }
-      case "product": {
-        if (!prompt) throw new HttpError(400, "Prompt is required");
 
-        const fullPrompt = `person holding product ${prompt}, studio lighting, realistic, advertisement, high quality`;
+      case "product":
+        if (!prompt) throw new HttpError(400, "Prompt required");
 
-        if (hasLocalSD) {
-          try {
-            const data = await callLocalSD(SD_URL, "/sdapi/v1/txt2img", {
-              prompt: fullPrompt,
-              steps: 25,
-              width: 512,
-              height: 512,
-            }) as { images: string[] };
-            imageResult = `data:image/png;base64,${data.images[0]}`;
-          } catch (sdErr) {
-            console.log("⚠️ Local SD failed, falling back:", sdErr);
-            imageResult = await generateWithFallback(fullPrompt);
-          }
-        } else {
-          imageResult = await generateWithFallback(fullPrompt);
-        }
+        result = await generateImage(`professional product advertisement photo ${prompt}, studio lighting`);
         break;
-      }
-      case "upscale": {
-        if (!image) throw new HttpError(400, "Image is required");
-        if (!hasLocalSD) throw new HttpError(500, "Upscale wymaga lokalnego SD (ustaw SD_LOCAL_URL)");
 
-        const data = await callLocalSD(SD_URL, "/sdapi/v1/extra-single-image", {
-          image: image.startsWith("data:") ? image.split(",")[1] : image,
-          upscaler_1: "R-ESRGAN 4x+",
-          upscaling_resize: 4,
-        }) as { image: string };
-        imageResult = `data:image/png;base64,${data.image}`;
-        break;
-      }
-      case "coloring": {
-        if (!image) throw new HttpError(400, "Image is required");
-        if (!hasLocalSD) throw new HttpError(500, "Kolorowanka wymaga lokalnego SD (ustaw SD_LOCAL_URL)");
-
-        const imgBase64 = image.startsWith("data:") ? image.split(",")[1] : image;
-        const data = await callLocalSD(SD_URL, "/sdapi/v1/img2img", {
-          init_images: [imgBase64],
-          prompt: "clean line art coloring book page, black outlines on white background, no shading, no color",
-          steps: 20,
-          denoising_strength: 0.75,
-          width: 512,
-          height: 512,
-        }) as { images: string[] };
-        imageResult = `data:image/png;base64,${data.images[0]}`;
-        break;
-      }
-      case "enhance": {
-        if (!image) throw new HttpError(400, "Image is required");
-        if (!hasLocalSD) throw new HttpError(500, "Enhance wymaga lokalnego SD (ustaw SD_LOCAL_URL)");
-
-        const imgBase64 = image.startsWith("data:") ? image.split(",")[1] : image;
-        const data = await callLocalSD(SD_URL, "/sdapi/v1/img2img", {
-          init_images: [imgBase64],
-          prompt: "high quality, sharp, detailed, HDR, enhanced colors, professional photo",
-          steps: 25,
-          denoising_strength: 0.35,
-          width: 512,
-          height: 512,
-        }) as { images: string[] };
-        imageResult = `data:image/png;base64,${data.images[0]}`;
-        break;
-      }
       default:
         throw new HttpError(400, "Invalid action");
     }
 
-    return new Response(JSON.stringify({ image: imageResult }), {
+    return new Response(JSON.stringify({ image: result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    console.error("image-pro error:", e);
-
     const status = e instanceof HttpError ? e.status : 500;
-    const message = e instanceof Error ? e.message : "Unknown error";
 
-    return new Response(JSON.stringify({ error: message }), {
-      status,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        error: e instanceof Error ? e.message : "Unknown error",
+      }),
+      {
+        status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });
