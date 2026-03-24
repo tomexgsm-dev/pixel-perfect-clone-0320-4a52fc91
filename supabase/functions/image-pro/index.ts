@@ -38,7 +38,7 @@ function markDown(url: string) {
   AI_SERVERS = AI_SERVERS.map((s) => (s.url === url ? { ...s, status: "down" } : s));
 }
 
-/* ---------------- HF SPACES ---------------- */
+/* ---------------- HF CALL ---------------- */
 
 async function callHF(prompt: string): Promise<string | null> {
   for (let i = 0; i < AI_SERVERS.length; i++) {
@@ -60,7 +60,6 @@ async function callHF(prompt: string): Promise<string | null> {
       }
 
       const json = await res.json();
-
       const img = json?.data?.[0];
 
       if (img) return img;
@@ -74,7 +73,7 @@ async function callHF(prompt: string): Promise<string | null> {
   return null;
 }
 
-/* ---------------- LOVABLE GEMINI ---------------- */
+/* ---------------- LOVABLE ---------------- */
 
 async function callLovable(prompt: string) {
   const KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -83,10 +82,12 @@ async function callLovable(prompt: string) {
 
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
+
     headers: {
       Authorization: `Bearer ${KEY}`,
       "Content-Type": "application/json",
     },
+
     body: JSON.stringify({
       model: "google/gemini-2.5-flash-image",
       messages: [{ role: "user", content: prompt }],
@@ -117,8 +118,8 @@ async function callReplicate(prompt: string) {
     body: JSON.stringify({
       input: {
         prompt,
-        go_fast: true,
         num_outputs: 1,
+        go_fast: true,
       },
     }),
   });
@@ -142,7 +143,7 @@ async function callReplicate(prompt: string) {
   throw new Error("Replicate timeout");
 }
 
-/* ---------------- FALLBACK ---------------- */
+/* ---------------- GENERATOR ---------------- */
 
 async function generateImage(prompt: string) {
   if (cache.has(prompt)) return cache.get(prompt)!;
@@ -167,35 +168,51 @@ async function generateImage(prompt: string) {
   throw new HttpError(503, "All AI generators offline");
 }
 
+/* ---------------- ACTION PROMPTS ---------------- */
+
+function buildPrompt(action: string, prompt: string) {
+  switch (action) {
+    case "product":
+      return `professional product photography ${prompt}, studio lighting, high detail`;
+
+    case "logo":
+      return `modern logo design ${prompt}, minimal vector, white background`;
+
+    case "banner":
+      return `website banner ${prompt}, cinematic lighting, ultra wide composition`;
+
+    case "social":
+      return `instagram social media post ${prompt}, modern marketing style`;
+
+    case "restore":
+      return `restore and enhance photo quality`;
+
+    case "upscale":
+      return `ultra high resolution version of image`;
+
+    case "colorize":
+      return `colorized version of black and white photo`;
+
+    default:
+      return prompt;
+  }
+}
+
 /* ---------------- MAIN ---------------- */
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { action, prompt, image } = await req.json();
+    const { action, prompt } = await req.json();
 
-    let result: string;
+    let finalPrompt = buildPrompt(action, prompt || "");
 
-    switch (action) {
-      case "generate":
-        if (!prompt) throw new HttpError(400, "Prompt required");
-        result = await generateImage(prompt);
-        break;
+    if (!finalPrompt) throw new HttpError(400, "Prompt required");
 
-      case "product":
-        if (!prompt) throw new HttpError(400, "Prompt required");
+    const image = await generateImage(finalPrompt);
 
-        result = await generateImage(`professional product advertisement photo ${prompt}, studio lighting`);
-        break;
-
-      default:
-        throw new HttpError(400, "Invalid action");
-    }
-
-    return new Response(JSON.stringify({ image: result }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({ image }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     const status = e instanceof HttpError ? e.status : 500;
 
