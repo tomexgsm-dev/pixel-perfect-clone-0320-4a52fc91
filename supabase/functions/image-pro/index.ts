@@ -15,29 +15,42 @@ class HttpError extends Error {
 
 /* ---------------- PRIMARY GENERATOR ---------------- */
 
-async function callPrimary(prompt: string): Promise<string | null> {
+async function callPrimary(prompt: string, image1?: string, image2?: string): Promise<string | null> {
   const API = Deno.env.get("NEXUS_IMAGE_API");
 
-  if (!API) return null;
+  if (!API) {
+    console.log("PRIMARY GENERATOR NOT CONFIGURED");
+    return null;
+  }
 
   try {
+    console.log("PRIMARY GENERATOR USED");
+
     const res = await fetch(`${API}/generate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({
+        prompt,
+        image1,
+        image2,
+      }),
       signal: AbortSignal.timeout(30000),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.log("PRIMARY FAILED");
+      return null;
+    }
 
     const blob = await res.blob();
 
     const base64 = await blobToBase64(blob);
 
     return base64;
-  } catch {
+  } catch (e) {
+    console.log("PRIMARY ERROR", e);
     return null;
   }
 }
@@ -69,6 +82,7 @@ function getServer() {
 
   if (!working.length) {
     AI_SERVERS = AI_SERVERS.map((s) => ({ ...s, status: "ok" }));
+
     return AI_SERVERS[0];
   }
 
@@ -192,12 +206,12 @@ async function callReplicate(prompt: string) {
 
 /* ---------------- GENERATOR ---------------- */
 
-async function generateImage(prompt: string) {
+async function generateImage(prompt: string, image1?: string, image2?: string) {
   if (cache.has(prompt)) return cache.get(prompt)!;
 
-  /* PRIMARY GENERATOR */
+  /* PRIMARY */
 
-  const primary = await callPrimary(prompt);
+  const primary = await callPrimary(prompt, image1, image2);
 
   if (primary) {
     cache.set(prompt, primary);
@@ -233,22 +247,22 @@ async function generateImage(prompt: string) {
 function buildPrompt(action: string, prompt: string) {
   switch (action) {
     case "product":
-      return `professional product photography ${prompt}, studio lighting, high detail`;
+      return `professional product advertisement, combine images into one commercial composition, ${prompt}`;
 
     case "logo":
       return `modern logo design ${prompt}, minimal vector, white background`;
 
     case "banner":
-      return `website banner ${prompt}, cinematic lighting, ultra wide composition`;
+      return `website banner ${prompt}, cinematic lighting, ultra wide`;
 
     case "social":
-      return `instagram social media post ${prompt}, modern marketing style`;
+      return `instagram marketing post ${prompt}, professional marketing`;
 
     case "restore":
-      return `restore and enhance photo quality`;
+      return `restore damaged photo, improve quality`;
 
     case "upscale":
-      return `ultra high resolution version of image`;
+      return `ultra high resolution version`;
 
     case "colorize":
       return `colorized version of black and white photo`;
@@ -264,13 +278,13 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { action, prompt } = await req.json();
+    const { action, prompt, image1, image2 } = await req.json();
 
     const finalPrompt = buildPrompt(action, prompt || "");
 
     if (!finalPrompt) throw new HttpError(400, "Prompt required");
 
-    const image = await generateImage(finalPrompt);
+    const image = await generateImage(finalPrompt, image1, image2);
 
     return new Response(JSON.stringify({ image }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
