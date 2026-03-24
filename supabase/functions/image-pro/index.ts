@@ -13,7 +13,48 @@ class HttpError extends Error {
   }
 }
 
-/* ---------------- AI SERVERS ---------------- */
+/* ---------------- PRIMARY GENERATOR ---------------- */
+
+async function callPrimary(prompt: string): Promise<string | null> {
+  const API = Deno.env.get("NEXUS_IMAGE_API");
+
+  if (!API) return null;
+
+  try {
+    const res = await fetch(`${API}/generate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prompt }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!res.ok) return null;
+
+    const blob = await res.blob();
+
+    const base64 = await blobToBase64(blob);
+
+    return base64;
+  } catch {
+    return null;
+  }
+}
+
+async function blobToBase64(blob: Blob) {
+  const buffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+
+  return `data:image/png;base64,${btoa(binary)}`;
+}
+
+/* ---------------- HF SERVERS ---------------- */
 
 let AI_SERVERS = [
   { url: "https://tongyi-mai-z-image-turbo.hf.space", status: "ok" },
@@ -78,28 +119,30 @@ async function callHF(prompt: string): Promise<string | null> {
 async function callLovable(prompt: string) {
   const KEY = Deno.env.get("LOVABLE_API_KEY");
 
-  if (!KEY) throw new HttpError(500, "LOVABLE_API_KEY missing");
+  if (!KEY) return null;
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-image",
+        messages: [{ role: "user", content: prompt }],
+        modalities: ["image", "text"],
+      }),
+    });
 
-    headers: {
-      Authorization: `Bearer ${KEY}`,
-      "Content-Type": "application/json",
-    },
+    if (!res.ok) return null;
 
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash-image",
-      messages: [{ role: "user", content: prompt }],
-      modalities: ["image", "text"],
-    }),
-  });
+    const data = await res.json();
 
-  if (!res.ok) throw new Error("Lovable failed");
-
-  const data = await res.json();
-
-  return data?.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    return data?.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+  } catch {
+    return null;
+  }
 }
 
 /* ---------------- REPLICATE ---------------- */
@@ -107,46 +150,61 @@ async function callLovable(prompt: string) {
 async function callReplicate(prompt: string) {
   const API = Deno.env.get("REPLICATE_API");
 
-  if (!API) throw new Error("REPLICATE_API missing");
+  if (!API) return null;
 
-  const create = await fetch("https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${API}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      input: {
-        prompt,
-        num_outputs: 1,
-        go_fast: true,
+  try {
+    const create = await fetch("https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${API}`,
+        "Content-Type": "application/json",
       },
-    }),
-  });
-
-  const prediction = await create.json();
-
-  for (let i = 0; i < 30; i++) {
-    await new Promise((r) => setTimeout(r, 2000));
-
-    const poll = await fetch(prediction.urls.get, {
-      headers: { Authorization: `Bearer ${API}` },
+      body: JSON.stringify({
+        input: {
+          prompt,
+          num_outputs: 1,
+          go_fast: true,
+        },
+      }),
     });
 
-    const data = await poll.json();
+    const prediction = await create.json();
 
-    if (data.status === "succeeded") return data.output[0];
+    for (let i = 0; i < 30; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
 
-    if (data.status === "failed") break;
+      const poll = await fetch(prediction.urls.get, {
+        headers: { Authorization: `Bearer ${API}` },
+      });
+
+      const data = await poll.json();
+
+      if (data.status === "succeeded") return data.output[0];
+
+      if (data.status === "failed") break;
+    }
+
+    return null;
+  } catch {
+    return null;
   }
-
-  throw new Error("Replicate timeout");
 }
 
 /* ---------------- GENERATOR ---------------- */
 
 async function generateImage(prompt: string) {
   if (cache.has(prompt)) return cache.get(prompt)!;
+
+  /* PRIMARY GENERATOR */
+
+  const primary = await callPrimary(prompt);
+
+  if (primary) {
+    cache.set(prompt, primary);
+    return primary;
+  }
+
+  /* HF */
 
   const hf = await callHF(prompt);
 
@@ -155,20 +213,22 @@ async function generateImage(prompt: string) {
     return hf;
   }
 
-  try {
-    const lovable = await callLovable(prompt);
-    if (lovable) return lovable;
-  } catch {}
+  /* LOVABLE */
 
-  try {
-    const rep = await callReplicate(prompt);
-    if (rep) return rep;
-  } catch {}
+  const lovable = await callLovable(prompt);
+
+  if (lovable) return lovable;
+
+  /* REPLICATE */
+
+  const rep = await callReplicate(prompt);
+
+  if (rep) return rep;
 
   throw new HttpError(503, "All AI generators offline");
 }
 
-/* ---------------- ACTION PROMPTS ---------------- */
+/* ---------------- PROMPT BUILDER ---------------- */
 
 function buildPrompt(action: string, prompt: string) {
   switch (action) {
@@ -206,13 +266,15 @@ serve(async (req) => {
   try {
     const { action, prompt } = await req.json();
 
-    let finalPrompt = buildPrompt(action, prompt || "");
+    const finalPrompt = buildPrompt(action, prompt || "");
 
     if (!finalPrompt) throw new HttpError(400, "Prompt required");
 
     const image = await generateImage(finalPrompt);
 
-    return new Response(JSON.stringify({ image }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ image }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (e) {
     const status = e instanceof HttpError ? e.status : 500;
 
