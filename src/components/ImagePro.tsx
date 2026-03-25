@@ -55,7 +55,7 @@ export default function ImagePro() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, // FIX
         },
         body: JSON.stringify({
           action,
@@ -164,8 +164,6 @@ export default function ImagePro() {
         onChange={(e) => setPrompt(e.target.value)}
       />
 
-      {/* ACTIONS */}
-
       <div className="flex flex-wrap gap-2 mb-4">
         {ACTIONS.map((a) => {
           const disabled = loading || uploading || (a.needsPrompt && !prompt.trim()) || (a.needsImage && !uploaded);
@@ -182,8 +180,6 @@ export default function ImagePro() {
           );
         })}
       </div>
-
-      {/* UPLOADS */}
 
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
@@ -220,8 +216,6 @@ export default function ImagePro() {
         Clear uploads
       </button>
 
-      {/* PROGRESS */}
-
       {loading && (
         <div className="mb-4">
           <div className="w-full bg-muted rounded-full h-3">
@@ -231,8 +225,6 @@ export default function ImagePro() {
           <p className="text-sm mt-1">AI generating {progress}%</p>
         </div>
       )}
-
-      {/* RESULT */}
 
       {image && (
         <div className="bg-card border border-border rounded-xl p-4 mb-6">
@@ -246,8 +238,6 @@ export default function ImagePro() {
           </a>
         </div>
       )}
-
-      {/* GALLERY */}
 
       {gallery.length > 0 && (
         <div>
