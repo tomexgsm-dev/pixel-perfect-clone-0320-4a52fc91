@@ -247,7 +247,103 @@ async function callReplicate(prompt: string) {
   }
 }
 
-/* ---------------- PROMPT ENGINE ---------------- */
+/* ---------------- HF INFERENCE API (free tier) ---------------- */
+
+async function callHFInference(prompt: string): Promise<string | null> {
+  const KEY = Deno.env.get("HF_KEY");
+  if (!KEY) {
+    console.error("HF_KEY not set");
+    return null;
+  }
+
+  const models = [
+    "black-forest-labs/FLUX.1-schnell",
+    "stabilityai/stable-diffusion-xl-base-1.0",
+  ];
+
+  for (const model of models) {
+    try {
+      console.log(`Trying HF Inference: ${model}`);
+      const res = await fetch(
+        `https://api-inference.huggingface.co/models/${model}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ inputs: prompt }),
+          signal: AbortSignal.timeout(30000),
+        },
+      );
+
+      if (!res.ok) {
+        console.error(`HF Inference ${model}: ${res.status}`);
+        continue;
+      }
+
+      const blob = await res.blob();
+      const buffer = await blob.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      console.log(`HF Inference ${model}: success`);
+      return `data:image/png;base64,${btoa(binary)}`;
+    } catch (e) {
+      console.error(`HF Inference ${model} error:`, e);
+    }
+  }
+
+  return null;
+}
+
+/* ---------------- GEMINI DIRECT ---------------- */
+
+async function callGeminiDirect(prompt: string): Promise<string | null> {
+  const KEY = Deno.env.get("GEMINI_KEY");
+  if (!KEY) {
+    console.error("GEMINI_KEY not set");
+    return null;
+  }
+
+  try {
+    console.log("Trying Gemini direct API...");
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+        }),
+        signal: AbortSignal.timeout(30000),
+      },
+    );
+
+    if (!res.ok) {
+      console.error("Gemini direct error:", res.status, await res.text());
+      return null;
+    }
+
+    const data = await res.json();
+    const parts = data?.candidates?.[0]?.content?.parts || [];
+    for (const part of parts) {
+      if (part.inlineData?.mimeType?.startsWith("image/")) {
+        console.log("Gemini direct: image generated");
+        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+      }
+    }
+    console.error("Gemini direct: no image in response");
+    return null;
+  } catch (e) {
+    console.error("Gemini direct exception:", e);
+    return null;
+  }
+}
+
 
 function buildPrompt(
   action: string,
