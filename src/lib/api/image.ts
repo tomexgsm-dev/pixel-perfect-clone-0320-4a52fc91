@@ -8,7 +8,7 @@ export async function generateImage(
 
   let options: RequestInit;
 
-  // tryby tekstowe: generate, product, logo, banner, social
+  // Tryby tekstowe: generate, product, logo, banner, social
   if (["generate", "product", "logo", "banner", "social"].includes(action)) {
     options = {
       method: "POST",
@@ -18,7 +18,7 @@ export async function generateImage(
       body: JSON.stringify({ prompt: prompt || "" }),
     };
   } else {
-    // tryby obrazkowe: restore, upscale, colorize
+    // Tryby obrazkowe: restore, upscale, colorize
     if (!file) {
       throw new Error("Image file is required for this action");
     }
@@ -40,8 +40,9 @@ export async function generateImage(
     throw new Error("Image generation failed");
   }
 
-  // backend zwraca PNG → blob → URL do <img>
+  // Backend zwraca PNG → blob → URL do <img>
   const blob = await response.blob();
   const objectUrl = URL.createObjectURL(blob);
   return objectUrl;
 }
+
