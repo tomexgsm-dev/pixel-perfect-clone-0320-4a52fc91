@@ -28,6 +28,7 @@ export default function ChatPage() {
   const speechSettings = useSpeechSettings();
   const prevMessageCountRef = useRef(0);
 
+  // PRO users = unlimited, anonymous users = localStorage limits
   const canChat = user && isPro ? true : freeLimits.canChat;
 
   const { data: conversation } = useQuery({
@@ -82,15 +83,7 @@ export default function ChatPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
-
-  const scrollToBottom = () =>
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [dbMessages, streamingMessage]);
-
-  // 🔊 Auto-read WITHOUT regex (Hostinger-safe)
+  // Auto-read new assistant messages — SAFE (no regex)
   useEffect(() => {
     if (!speechSettings.autoRead || !messages.length) {
       prevMessageCountRef.current = messages.length;
@@ -103,44 +96,42 @@ export default function ChatPage() {
       if (last.role === "assistant" && last.content) {
         let plainText = last.content;
 
-        // usuń bloki kodu
+        // Usuń bloki kodu ```...```
         while (plainText.includes("```")) {
           const start = plainText.indexOf("```");
           const end = plainText.indexOf("```", start + 3);
           if (end === -1) break;
-          plainText =
-            plainText.slice(0, start) + plainText.slice(end + 3);
+          plainText = plainText.slice(0, start) + plainText.slice(end + 3);
         }
 
-        // usuń inline code
+        // Usuń inline code `...`
         while (plainText.includes("`")) {
           const start = plainText.indexOf("`");
           const end = plainText.indexOf("`", start + 1);
           if (end === -1) break;
-          plainText =
-            plainText.slice(0, start) + plainText.slice(end + 1);
+          plainText = plainText.slice(0, start) + plainText.slice(end + 1);
         }
 
-        // usuń markdownowe znaki
+        // Usuń podstawowe znaki markdown
         const mdChars = ["#", "*", "_", "~", ">", "[", "]", "(", ")", "!", "|", "-"];
         mdChars.forEach((c) => {
           plainText = plainText.split(c).join("");
         });
 
-        // zamień nowe linie
-        plainText = plainText.split("\n").join(". ");
-
-        plainText = plainText.trim();
+        // Zamień nowe linie na kropki
+        plainText = plainText.split("\n").join(". ").trim();
 
         if (plainText) {
           speechSynthesis.cancel();
           const u = new SpeechSynthesisUtterance(plainText);
           u.lang = "pl-PL";
           u.rate = speechSettings.rate;
+
           const voice = speechSettings.voices.find(
             (v) => v.voiceURI === speechSettings.voiceURI
           );
           if (voice) u.voice = voice;
+
           speechSynthesis.speak(u);
         }
       }
@@ -166,9 +157,7 @@ export default function ChatPage() {
     }
     setAttachment(file);
     setAttachmentPreview(
-      file.type.startsWith("image/")
-        ? URL.createObjectURL(file)
-        : null
+      file.type.startsWith("image/") ? URL.createObjectURL(file) : null
     );
   };
 
@@ -332,7 +321,6 @@ export default function ChatPage() {
     e.target.style.height = "auto";
     e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
   };
-
   return (
     <Layout>
       {isLoading ? (
@@ -406,7 +394,7 @@ export default function ChatPage() {
                     to={user ? "/pricing" : "/auth"}
                     className="flex items-center gap-1 text-primary font-medium text-sm hover:underline"
                   >
-                    <Crown className="w-4 h-4" />{" "}
+                    <Crown className="w-4 h-4" />
                     {user ? "PRO" : t.auth.signupLink}
                   </Link>
                 </div>
@@ -431,6 +419,7 @@ export default function ChatPage() {
                       <FileText className="w-5 h-5 text-muted-foreground" />
                     </div>
                   )}
+
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
                       {attachment.name}
@@ -439,6 +428,7 @@ export default function ChatPage() {
                       {(attachment.size / 1024).toFixed(1)} KB
                     </p>
                   </div>
+
                   <button
                     onClick={removeAttachment}
                     className="p-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
@@ -447,7 +437,6 @@ export default function ChatPage() {
                   </button>
                 </div>
               )}
-
               <form onSubmit={handleSubmit} className="relative">
                 <input
                   ref={fileInputRef}
@@ -459,6 +448,7 @@ export default function ChatPage() {
                     if (f) processFile(f);
                   }}
                 />
+
                 <textarea
                   ref={textareaRef}
                   value={input}
@@ -475,6 +465,7 @@ export default function ChatPage() {
                   disabled={!canChat}
                   className="w-full resize-none bg-card border border-border rounded-2xl pl-[8rem] pr-14 py-3.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 shadow-lg disabled:opacity-50"
                 />
+
                 <div className="absolute left-2 bottom-2 flex items-center gap-0.5">
                   <button
                     type="button"
@@ -484,5 +475,49 @@ export default function ChatPage() {
                   >
                     <Paperclip className="w-4 h-4" />
                   </button>
+
                   <VoiceInput
-                    onText
+                    onText={(text) => setInput(text)}
+                    onSubmit={sendVoiceMessage}
+                    disabled={isStreaming || uploading || !canChat}
+                  />
+
+                  <SpeechSettingsPopover />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={
+                    (!input.trim() && !attachment) ||
+                    isStreaming ||
+                    uploading ||
+                    !canChat
+                  }
+                  className={cn(
+                    "absolute right-2 bottom-2 p-2.5 rounded-xl transition-all",
+                    (input.trim() || attachment) &&
+                      !isStreaming &&
+                      !uploading &&
+                      canChat
+                      ? "bg-primary text-primary-foreground shadow-glow hover:scale-105"
+                      : "bg-secondary text-muted-foreground"
+                  )}
+                >
+                  {isStreaming || uploading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                </button>
+              </form>
+
+              <p className="text-center text-xs text-muted-foreground/50 mt-2">
+                {t.chat.disclaimer}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </Layout>
+  );
+}
