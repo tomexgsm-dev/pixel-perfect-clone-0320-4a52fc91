@@ -13,6 +13,32 @@ class HttpError extends Error {
   }
 }
 
+/* ---------------- CACHE ---------------- */
+
+const cache = new Map<string, string>();
+
+function cacheSet(prompt: string, image: string) {
+  if (cache.size > 50) {
+    const first = cache.keys().next().value;
+    cache.delete(first);
+  }
+  cache.set(prompt, image);
+}
+
+/* ---------------- IMAGE NORMALIZER ---------------- */
+
+function normalizeImage(img: any): string | null {
+  if (!img) return null;
+
+  if (typeof img === "string") return img;
+
+  if (Array.isArray(img)) return img[0];
+
+  if (img?.url) return img.url;
+
+  return null;
+}
+
 /* ---------------- PRIMARY GENERATOR ---------------- */
 
 async function callPrimary(prompt: string): Promise<string | null> {
@@ -23,9 +49,7 @@ async function callPrimary(prompt: string): Promise<string | null> {
   try {
     const res = await fetch(`${API}/generate`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt }),
       signal: AbortSignal.timeout(30000),
     });
@@ -56,8 +80,6 @@ let AI_SERVERS = [
   { url: "https://mrfakename-z-image-turbo.hf.space", status: "ok" },
   { url: "https://ap123-illusiondiffusion.hf.space", status: "ok" },
 ];
-
-const cache = new Map<string, string>();
 
 function getServer() {
   const working = AI_SERVERS.filter((s) => s.status === "ok");
@@ -96,7 +118,8 @@ async function callHF(prompt: string): Promise<string | null> {
       }
 
       const json = await res.json();
-      const img = json?.data?.[0];
+
+      const img = normalizeImage(json?.data);
 
       if (img) return img;
 
@@ -134,7 +157,7 @@ async function callLovable(prompt: string) {
 
     const data = await res.json();
 
-    return data?.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    return normalizeImage(data?.choices?.[0]?.message?.images?.[0]?.image_url?.url);
   } catch {
     return null;
   }
@@ -165,7 +188,7 @@ async function callReplicate(prompt: string) {
 
     const prediction = await create.json();
 
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 25; i++) {
       await new Promise((r) => setTimeout(r, 2000));
 
       const poll = await fetch(prediction.urls.get, {
@@ -174,7 +197,9 @@ async function callReplicate(prompt: string) {
 
       const data = await poll.json();
 
-      if (data.status === "succeeded") return data.output[0];
+      if (data.status === "succeeded") {
+        return normalizeImage(data.output);
+      }
 
       if (data.status === "failed") break;
     }
@@ -190,9 +215,8 @@ async function callReplicate(prompt: string) {
 function buildPrompt(action: string, prompt: string, image?: string, image2?: string) {
   switch (action) {
     case "product":
-      if (image2) {
-        return `professional product advertisement using the product from first image placed naturally into the background from second image, cinematic lighting, commercial photography`;
-      }
+      if (image && image2)
+        return `product from first image placed naturally inside second image background, commercial photography, ultra realistic`;
 
       return `professional product photography ${prompt}, studio lighting, high detail`;
 
@@ -206,7 +230,7 @@ function buildPrompt(action: string, prompt: string, image?: string, image2?: st
       return `instagram marketing post ${prompt}, modern marketing style`;
 
     case "restore":
-      return `restore and enhance photo quality`;
+      return `restore damaged photo, high quality`;
 
     case "upscale":
       return `ultra high resolution version of image`;
@@ -227,14 +251,14 @@ async function generateImage(prompt: string) {
   const primary = await callPrimary(prompt);
 
   if (primary) {
-    cache.set(prompt, primary);
+    cacheSet(prompt, primary);
     return primary;
   }
 
   const hf = await callHF(prompt);
 
   if (hf) {
-    cache.set(prompt, hf);
+    cacheSet(prompt, hf);
     return hf;
   }
 
