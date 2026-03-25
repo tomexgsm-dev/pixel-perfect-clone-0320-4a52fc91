@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { Sparkles, Loader2, Mail, Lock } from "lucide-react";
 import { useI18n } from "@/i18n";
 import { cn } from "@/lib/utils";

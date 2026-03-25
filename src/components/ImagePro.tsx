@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Loader2, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { useI18n } from "@/i18n";
 
 const ACTIONS = [

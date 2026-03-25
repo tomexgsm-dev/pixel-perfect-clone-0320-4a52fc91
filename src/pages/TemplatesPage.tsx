@@ -5,7 +5,7 @@ import { useProfile } from "@/hooks/use-profile";
 import { useFreeLimits } from "@/hooks/use-free-limits";
 import { useAuth } from "@/hooks/use-auth";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Crown, Loader2, Sparkles, Lock, Download, X, Shuffle, Trophy, AlertTriangle, Copy, Scissors, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";

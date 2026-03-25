@@ -7,7 +7,7 @@ import { useI18n } from "@/i18n";
 import { Check, Crown, Zap, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function PricingPage() {
