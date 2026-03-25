@@ -150,9 +150,13 @@ async function callHF(prompt: string): Promise<string | null> {
 async function callLovable(prompt: string) {
   const KEY = Deno.env.get("LOVABLE_API_KEY");
 
-  if (!KEY) return null;
+  if (!KEY) {
+    console.error("LOVABLE_API_KEY not set");
+    return null;
+  }
 
   try {
+    console.log("Calling Lovable AI for image generation...");
     const res = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
@@ -162,21 +166,31 @@ async function callLovable(prompt: string) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash-image",
+          model: "google/gemini-3.1-flash-image-preview",
           messages: [{ role: "user", content: prompt }],
           modalities: ["image", "text"],
         }),
       },
     );
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Lovable AI error:", res.status, errText);
+      return null;
+    }
 
     const data = await res.json();
+    const imageUrl = data?.choices?.[0]?.message?.images?.[0]?.image_url?.url;
 
-    return normalizeImage(
-      data?.choices?.[0]?.message?.images?.[0]?.image_url?.url,
-    );
-  } catch {
+    if (imageUrl) {
+      console.log("Lovable AI image generated successfully");
+      return imageUrl;
+    }
+
+    console.error("Lovable AI: no image in response");
+    return null;
+  } catch (e) {
+    console.error("Lovable AI exception:", e);
     return null;
   }
 }
