@@ -1,25 +1,47 @@
-export async function generateImage(prompt: string, file?: File) {
-  const apiUrl = import.meta.env.NEXUS_IMAGE_API;
+export async function generateImage(
+  action: string,
+  prompt?: string,
+  file?: File
+) {
+  const baseUrl = import.meta.env.NEXUS_IMAGE_API;
+  const url = `${baseUrl}/${action}`;
 
-  const formData = new FormData();
-  formData.append("prompt", prompt);
+  let options: RequestInit;
 
-  if (file) {
+  // tryby tekstowe: generate, product, logo, banner, social
+  if (["generate", "product", "logo", "banner", "social"].includes(action)) {
+    options = {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prompt: prompt || "" }),
+    };
+  } else {
+    // tryby obrazkowe: restore, upscale, colorize
+    if (!file) {
+      throw new Error("Image file is required for this action");
+    }
+
+    const formData = new FormData();
     formData.append("image", file);
+
+    options = {
+      method: "POST",
+      body: formData,
+    };
   }
 
-  const response = await fetch(apiUrl, {
-    method: "POST",
-    body: formData,
-  });
+  const response = await fetch(url, options);
 
   if (!response.ok) {
-    console.error("Image API error:", response.status, await response.text());
+    const text = await response.text();
+    console.error("Image API error:", response.status, text);
     throw new Error("Image generation failed");
   }
 
-  const result = await response.json();
-
-  return result.data[0].image;
+  // backend zwraca PNG → blob → URL do <img>
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  return objectUrl;
 }
-
