@@ -44,39 +44,31 @@ export default function ImagePro() {
     setImage(null);
 
     const interval = setInterval(() => {
-      setProgress((p) => {
-        if (p >= 90) return p;
-        return p + 4;
-      });
+      setProgress((p) => (p >= 90 ? p : p + 4));
     }, 700);
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/image-pro`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, // FIX
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke("image-pro", {
+        body: {
           action,
           prompt: prompt || undefined,
           image: uploaded || undefined,
           image2: uploaded2 || undefined,
-        }),
+        },
       });
 
       clearInterval(interval);
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err?.error || "AI error");
+      if (error) {
+        toast.error(error.message || "AI error");
         setProgress(0);
         return;
       }
 
-      const data = await res.json();
-
-      const result = data?.image || data?.url || data?.data?.[0] || null;
+      const result =
+        data?.image ||
+        data?.url ||
+        (Array.isArray(data?.data) ? data.data[0] : null);
 
       if (!result) {
         toast.error("AI returned empty result");
@@ -89,7 +81,8 @@ export default function ImagePro() {
       setProgress(100);
 
       toast.success("Done");
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("Connection error");
       setProgress(0);
     } finally {
@@ -122,11 +115,15 @@ export default function ImagePro() {
       const ext = file.name.split(".").pop() || "png";
       const path = `image-pro/${crypto.randomUUID()}.${ext}`;
 
-      const { error } = await supabase.storage.from("chat-attachments").upload(path, file);
+      const { error } = await supabase.storage
+        .from("chat-attachments")
+        .upload(path, file);
 
       if (error) throw error;
 
-      const { data } = supabase.storage.from("chat-attachments").getPublicUrl(path);
+      const { data } = supabase.storage
+        .from("chat-attachments")
+        .getPublicUrl(path);
 
       setUrl(data.publicUrl);
     } catch {
@@ -166,7 +163,11 @@ export default function ImagePro() {
 
       <div className="flex flex-wrap gap-2 mb-4">
         {ACTIONS.map((a) => {
-          const disabled = loading || uploading || (a.needsPrompt && !prompt.trim()) || (a.needsImage && !uploaded);
+          const disabled =
+            loading ||
+            uploading ||
+            (a.needsPrompt && !prompt.trim()) ||
+            (a.needsImage && !uploaded);
 
           return (
             <button
@@ -193,7 +194,12 @@ export default function ImagePro() {
             }}
           />
 
-          {uploadedPreview && <img src={uploadedPreview} className="mt-2 rounded-xl max-h-[200px]" />}
+          {uploadedPreview && (
+            <img
+              src={uploadedPreview}
+              className="mt-2 rounded-xl max-h-[200px]"
+            />
+          )}
         </div>
 
         <div>
@@ -207,11 +213,19 @@ export default function ImagePro() {
             }}
           />
 
-          {uploadedPreview2 && <img src={uploadedPreview2} className="mt-2 rounded-xl max-h-[200px]" />}
+          {uploadedPreview2 && (
+            <img
+              src={uploadedPreview2}
+              className="mt-2 rounded-xl max-h-[200px]"
+            />
+          )}
         </div>
       </div>
 
-      <button onClick={clearUploads} className="flex items-center gap-2 text-sm mb-4 text-muted-foreground">
+      <button
+        onClick={clearUploads}
+        className="flex items-center gap-2 text-sm mb-4 text-muted-foreground"
+      >
         <Trash2 className="w-4 h-4" />
         Clear uploads
       </button>
@@ -219,7 +233,10 @@ export default function ImagePro() {
       {loading && (
         <div className="mb-4">
           <div className="w-full bg-muted rounded-full h-3">
-            <div className="bg-primary h-3 transition-all" style={{ width: `${progress}%` }} />
+            <div
+              className="bg-primary h-3 transition-all"
+              style={{ width: `${progress}%` }}
+            />
           </div>
 
           <p className="text-sm mt-1">AI generating {progress}%</p>
@@ -228,7 +245,10 @@ export default function ImagePro() {
 
       {image && (
         <div className="bg-card border border-border rounded-xl p-4 mb-6">
-          <img src={image} className="rounded-xl w-full max-h-[500px] object-contain" />
+          <img
+            src={image}
+            className="rounded-xl w-full max-h-[500px] object-contain"
+          />
 
           <a href={image} download target="_blank">
             <button className="flex items-center gap-2 mt-3 px-4 py-2 bg-secondary rounded-xl">
@@ -241,11 +261,18 @@ export default function ImagePro() {
 
       {gallery.length > 0 && (
         <div>
-          <p className="text-sm mb-2 text-muted-foreground">Last generations</p>
+          <p className="text-sm mb-2 text-muted-foreground">
+            Last generations
+          </p>
 
           <div className="grid grid-cols-4 gap-2">
             {gallery.map((img, i) => (
-              <img key={i} src={img} className="rounded-lg cursor-pointer" onClick={() => setImage(img)} />
+              <img
+                key={i}
+                src={img}
+                className="rounded-lg cursor-pointer"
+                onClick={() => setImage(img)}
+              />
             ))}
           </div>
         </div>
