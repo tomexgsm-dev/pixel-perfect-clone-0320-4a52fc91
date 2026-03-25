@@ -28,7 +28,6 @@ export default function ChatPage() {
   const speechSettings = useSpeechSettings();
   const prevMessageCountRef = useRef(0);
 
-  // PRO users = unlimited, anonymous users = localStorage limits
   const canChat = user && isPro ? true : freeLimits.canChat;
 
   const { data: conversation } = useQuery({
@@ -73,11 +72,9 @@ export default function ChatPage() {
     useChatStream(conversationId);
 
   const [input, setInput] = useState("");
-  const [selectedModel, setSelectedModel] = useState<AIModelId>("gemini");
+  const [selectedModel] = useState<AIModelId>("gemini");
   const [attachment, setAttachment] = useState<File | null>(null);
-  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(
-    null
-  );
+  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -93,7 +90,7 @@ export default function ChatPage() {
     scrollToBottom();
   }, [dbMessages, streamingMessage]);
 
-  // Auto-read new assistant messages
+  // 🔊 Auto-read WITHOUT regex (Hostinger-safe)
   useEffect(() => {
     if (!speechSettings.autoRead || !messages.length) {
       prevMessageCountRef.current = messages.length;
@@ -102,21 +99,38 @@ export default function ChatPage() {
 
     if (messages.length > prevMessageCountRef.current) {
       const last = messages[messages.length - 1];
+
       if (last.role === "assistant" && last.content) {
-        const plainText = last.content
-          // usuń bloki kodu
-          .replace(/```[\s\S]*?```/g, "")
-          // usuń inline code
-          .replace(/`[^`]*`/g, "")
-          // usuń markdownowe znaki formatowania
-          .replace(/[#*_~>
+        let plainText = last.content;
 
-\[\]
+        // usuń bloki kodu
+        while (plainText.includes("```")) {
+          const start = plainText.indexOf("```");
+          const end = plainText.indexOf("```", start + 3);
+          if (end === -1) break;
+          plainText =
+            plainText.slice(0, start) + plainText.slice(end + 3);
+        }
 
-()!|\-]/g, "")
-          // zamień wielokrotne nowe linie na kropki
-          .replace(/\n+/g, ". ")
-          .trim();
+        // usuń inline code
+        while (plainText.includes("`")) {
+          const start = plainText.indexOf("`");
+          const end = plainText.indexOf("`", start + 1);
+          if (end === -1) break;
+          plainText =
+            plainText.slice(0, start) + plainText.slice(end + 1);
+        }
+
+        // usuń markdownowe znaki
+        const mdChars = ["#", "*", "_", "~", ">", "[", "]", "(", ")", "!", "|", "-"];
+        mdChars.forEach((c) => {
+          plainText = plainText.split(c).join("");
+        });
+
+        // zamień nowe linie
+        plainText = plainText.split("\n").join(". ");
+
+        plainText = plainText.trim();
 
         if (plainText) {
           speechSynthesis.cancel();
@@ -133,7 +147,7 @@ export default function ChatPage() {
     }
 
     prevMessageCountRef.current = messages.length;
-  }, [messages.length, speechSettings.autoRead, speechSettings.rate, speechSettings.voiceURI, speechSettings.voices, messages]);
+  }, [messages, speechSettings]);
 
   const handleRate = useCallback(
     async (messageId: string, rating: 1 | -1 | null) => {
@@ -152,32 +166,28 @@ export default function ChatPage() {
     }
     setAttachment(file);
     setAttachmentPreview(
-      file.type.startsWith("image/") ? URL.createObjectURL(file) : null
+      file.type.startsWith("image/")
+        ? URL.createObjectURL(file)
+        : null
     );
   };
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
-    e.stopPropagation();
     dragCounterRef.current++;
     if (e.dataTransfer.types.includes("Files")) setIsDragging(true);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
-    e.stopPropagation();
     dragCounterRef.current--;
     if (dragCounterRef.current === 0) setIsDragging(false);
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
+  const handleDragOver = (e: React.DragEvent) => e.preventDefault();
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    e.stopPropagation();
     dragCounterRef.current = 0;
     setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
@@ -272,13 +282,8 @@ export default function ChatPage() {
 
     if (textareaRef.current) textareaRef.current.style.height = "auto";
 
-    let attachmentData:
-      | {
-          url: string;
-          type: string;
-          name: string;
-        }
-      | null = null;
+    let attachmentData: { url: string; type: string; name: string } | null =
+      null;
 
     if (currentAttachment) {
       setUploading(true);
@@ -480,45 +485,4 @@ export default function ChatPage() {
                     <Paperclip className="w-4 h-4" />
                   </button>
                   <VoiceInput
-                    onText={(text) => setInput(text)}
-                    onSubmit={sendVoiceMessage}
-                    disabled={isStreaming || uploading || !canChat}
-                  />
-                  <SpeechSettingsPopover />
-                </div>
-                <button
-                  type="submit"
-                  disabled={
-                    (!input.trim() && !attachment) ||
-                    isStreaming ||
-                    uploading ||
-                    !canChat
-                  }
-                  className={cn(
-                    "absolute right-2 bottom-2 p-2.5 rounded-xl transition-all",
-                    (input.trim() || attachment) &&
-                      !isStreaming &&
-                      !uploading &&
-                      canChat
-                      ? "bg-primary text-primary-foreground shadow-glow hover:scale-105"
-                      : "bg-secondary text-muted-foreground"
-                  )}
-                >
-                  {isStreaming || uploading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                </button>
-              </form>
-
-              <p className="text-center text-xs text-muted-foreground/50 mt-2">
-                {t.chat.disclaimer}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-    </Layout>
-  );
-}
+                    onText
