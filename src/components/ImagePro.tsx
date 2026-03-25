@@ -19,7 +19,6 @@ export default function ImagePro() {
   const { lang } = useI18n();
 
   const [prompt, setPrompt] = useState("");
-
   const [image, setImage] = useState<string | null>(null);
 
   const [uploaded, setUploaded] = useState<string | null>(null);
@@ -32,7 +31,6 @@ export default function ImagePro() {
   const [uploading, setUploading] = useState(false);
 
   const [progress, setProgress] = useState(0);
-
   const [gallery, setGallery] = useState<string[]>([]);
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -71,26 +69,28 @@ export default function ImagePro() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-
-        toast.error(err.error || "AI error");
-
+        toast.error(err?.error || "AI error");
         setProgress(0);
-
         return;
       }
 
       const data = await res.json();
 
-      setImage(data.image);
+      const result = data?.image || data?.url || data?.data?.[0] || null;
 
-      setGallery((g) => [data.image, ...g.slice(0, 7)]);
+      if (!result) {
+        toast.error("AI returned empty result");
+        setProgress(0);
+        return;
+      }
 
+      setImage(result);
+      setGallery((g) => [result, ...g.slice(0, 7)]);
       setProgress(100);
 
       toast.success("Done");
     } catch {
       toast.error("Connection error");
-
       setProgress(0);
     } finally {
       setTimeout(() => {
@@ -105,23 +105,21 @@ export default function ImagePro() {
   const uploadFile = async (file: File, setPreview: any, setUrl: any) => {
     if (!file.type.startsWith("image/")) {
       toast.error("Select image");
-
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
       toast.error("Max 10MB");
-
       return;
     }
 
-    setPreview(URL.createObjectURL(file));
+    const previewUrl = URL.createObjectURL(file);
+    setPreview(previewUrl);
 
     setUploading(true);
 
     try {
       const ext = file.name.split(".").pop() || "png";
-
       const path = `image-pro/${crypto.randomUUID()}.${ext}`;
 
       const { error } = await supabase.storage.from("chat-attachments").upload(path, file);
@@ -133,12 +131,24 @@ export default function ImagePro() {
       setUrl(data.publicUrl);
     } catch {
       toast.error("Upload error");
-
       setPreview(null);
       setUrl(null);
     } finally {
       setUploading(false);
     }
+  };
+
+  /* ---------------- CLEAR ---------------- */
+
+  const clearUploads = () => {
+    if (uploadedPreview) URL.revokeObjectURL(uploadedPreview);
+    if (uploadedPreview2) URL.revokeObjectURL(uploadedPreview2);
+
+    setUploaded(null);
+    setUploadedPreview(null);
+
+    setUploaded2(null);
+    setUploadedPreview2(null);
   };
 
   /* ---------------- UI ---------------- */
@@ -204,6 +214,11 @@ export default function ImagePro() {
           {uploadedPreview2 && <img src={uploadedPreview2} className="mt-2 rounded-xl max-h-[200px]" />}
         </div>
       </div>
+
+      <button onClick={clearUploads} className="flex items-center gap-2 text-sm mb-4 text-muted-foreground">
+        <Trash2 className="w-4 h-4" />
+        Clear uploads
+      </button>
 
       {/* PROGRESS */}
 
