@@ -15,56 +15,38 @@ class HttpError extends Error {
 
 /* ---------------- PRIMARY GENERATOR ---------------- */
 
-async function callPrimary(prompt: string, image1?: string, image2?: string): Promise<string | null> {
+async function callPrimary(prompt: string): Promise<string | null> {
   const API = Deno.env.get("NEXUS_IMAGE_API");
 
-  if (!API) {
-    console.log("PRIMARY GENERATOR NOT CONFIGURED");
-    return null;
-  }
+  if (!API) return null;
 
   try {
-    console.log("PRIMARY GENERATOR USED");
-
     const res = await fetch(`${API}/generate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        prompt,
-        image1,
-        image2,
-      }),
+      body: JSON.stringify({ prompt }),
       signal: AbortSignal.timeout(30000),
     });
 
-    if (!res.ok) {
-      console.log("PRIMARY FAILED");
-      return null;
-    }
+    if (!res.ok) return null;
 
     const blob = await res.blob();
 
-    const base64 = await blobToBase64(blob);
+    const buffer = await blob.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
 
-    return base64;
-  } catch (e) {
-    console.log("PRIMARY ERROR", e);
+    let binary = "";
+
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+
+    return `data:image/png;base64,${btoa(binary)}`;
+  } catch {
     return null;
   }
-}
-
-async function blobToBase64(blob: Blob) {
-  const buffer = await blob.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-
-  return `data:image/png;base64,${btoa(binary)}`;
 }
 
 /* ---------------- HF SERVERS ---------------- */
@@ -82,7 +64,6 @@ function getServer() {
 
   if (!working.length) {
     AI_SERVERS = AI_SERVERS.map((s) => ({ ...s, status: "ok" }));
-
     return AI_SERVERS[0];
   }
 
@@ -204,50 +185,16 @@ async function callReplicate(prompt: string) {
   }
 }
 
-/* ---------------- GENERATOR ---------------- */
+/* ---------------- PROMPT ENGINE ---------------- */
 
-async function generateImage(prompt: string, image1?: string, image2?: string) {
-  if (cache.has(prompt)) return cache.get(prompt)!;
-
-  /* PRIMARY */
-
-  const primary = await callPrimary(prompt, image1, image2);
-
-  if (primary) {
-    cache.set(prompt, primary);
-    return primary;
-  }
-
-  /* HF */
-
-  const hf = await callHF(prompt);
-
-  if (hf) {
-    cache.set(prompt, hf);
-    return hf;
-  }
-
-  /* LOVABLE */
-
-  const lovable = await callLovable(prompt);
-
-  if (lovable) return lovable;
-
-  /* REPLICATE */
-
-  const rep = await callReplicate(prompt);
-
-  if (rep) return rep;
-
-  throw new HttpError(503, "All AI generators offline");
-}
-
-/* ---------------- PROMPT BUILDER ---------------- */
-
-function buildPrompt(action: string, prompt: string) {
+function buildPrompt(action: string, prompt: string, image?: string, image2?: string) {
   switch (action) {
     case "product":
-      return `professional product advertisement, combine images into one commercial composition, ${prompt}`;
+      if (image2) {
+        return `professional product advertisement using the product from first image placed naturally into the background from second image, cinematic lighting, commercial photography`;
+      }
+
+      return `professional product photography ${prompt}, studio lighting, high detail`;
 
     case "logo":
       return `modern logo design ${prompt}, minimal vector, white background`;
@@ -256,13 +203,13 @@ function buildPrompt(action: string, prompt: string) {
       return `website banner ${prompt}, cinematic lighting, ultra wide`;
 
     case "social":
-      return `instagram marketing post ${prompt}, professional marketing`;
+      return `instagram marketing post ${prompt}, modern marketing style`;
 
     case "restore":
-      return `restore damaged photo, improve quality`;
+      return `restore and enhance photo quality`;
 
     case "upscale":
-      return `ultra high resolution version`;
+      return `ultra high resolution version of image`;
 
     case "colorize":
       return `colorized version of black and white photo`;
@@ -272,21 +219,51 @@ function buildPrompt(action: string, prompt: string) {
   }
 }
 
+/* ---------------- GENERATOR ---------------- */
+
+async function generateImage(prompt: string) {
+  if (cache.has(prompt)) return cache.get(prompt)!;
+
+  const primary = await callPrimary(prompt);
+
+  if (primary) {
+    cache.set(prompt, primary);
+    return primary;
+  }
+
+  const hf = await callHF(prompt);
+
+  if (hf) {
+    cache.set(prompt, hf);
+    return hf;
+  }
+
+  const lovable = await callLovable(prompt);
+
+  if (lovable) return lovable;
+
+  const rep = await callReplicate(prompt);
+
+  if (rep) return rep;
+
+  throw new HttpError(503, "All AI generators offline");
+}
+
 /* ---------------- MAIN ---------------- */
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { action, prompt, image1, image2 } = await req.json();
+    const { action, prompt, image, image2 } = await req.json();
 
-    const finalPrompt = buildPrompt(action, prompt || "");
+    const finalPrompt = buildPrompt(action, prompt || "", image, image2);
 
     if (!finalPrompt) throw new HttpError(400, "Prompt required");
 
-    const image = await generateImage(finalPrompt, image1, image2);
+    const result = await generateImage(finalPrompt);
 
-    return new Response(JSON.stringify({ image }), {
+    return new Response(JSON.stringify({ image: result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
