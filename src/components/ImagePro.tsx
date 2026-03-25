@@ -1,8 +1,8 @@
 import { useState, useRef } from "react";
 import { Loader2, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
 import { useI18n } from "@/i18n";
+import { generateImage } from "@/lib/api/image";
 
 const ACTIONS = [
   { key: "generate", label: "🎨 Generuj", needsPrompt: true, needsImage: false },
@@ -15,16 +15,29 @@ const ACTIONS = [
   { key: "colorize", label: "🎨 Koloruj", needsPrompt: false, needsImage: true },
 ] as const;
 
+/* ---------- PRESETY TRYBÓW ---------- */
+
+const PRESETS: Record<string, string> = {
+  generate: "",
+  product: "product photography, studio light, high detail",
+  logo: "vector logo, clean minimalistic, flat design",
+  banner: "web banner, 16:9, modern, high contrast",
+  social: "instagram post, vibrant colors, aesthetic",
+  restore: "photo restoration, remove noise, fix blur",
+  upscale: "super resolution, upscale 2x, high detail",
+  colorize: "colorize black and white photo",
+};
+
 export default function ImagePro() {
   const { lang } = useI18n();
 
   const [prompt, setPrompt] = useState("");
   const [image, setImage] = useState<string | null>(null);
 
-  const [uploaded, setUploaded] = useState<string | null>(null);
+  const [uploaded, setUploaded] = useState<File | null>(null);
   const [uploadedPreview, setUploadedPreview] = useState<string | null>(null);
 
-  const [uploaded2, setUploaded2] = useState<string | null>(null);
+  const [uploaded2, setUploaded2] = useState<File | null>(null);
   const [uploadedPreview2, setUploadedPreview2] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -48,27 +61,14 @@ export default function ImagePro() {
     }, 700);
 
     try {
-      const { data, error } = await supabase.functions.invoke("image-pro", {
-        body: {
-          action,
-          prompt: prompt || undefined,
-          image: uploaded || undefined,
-          image2: uploaded2 || undefined,
-        },
-      });
+      const preset = PRESETS[action] || "";
+      const finalPrompt = `${preset} ${prompt}`.trim();
+
+      const fileToSend = uploaded || uploaded2 || null;
+
+      const result = await generateImage(finalPrompt, fileToSend || undefined);
 
       clearInterval(interval);
-
-      if (error) {
-        toast.error(error.message || "AI error");
-        setProgress(0);
-        return;
-      }
-
-      const result =
-        data?.image ||
-        data?.url ||
-        (Array.isArray(data?.data) ? data.data[0] : null);
 
       if (!result) {
         toast.error("AI returned empty result");
@@ -76,8 +76,10 @@ export default function ImagePro() {
         return;
       }
 
-      setImage(result);
-      setGallery((g) => [result, ...g.slice(0, 7)]);
+      const base64Image = `data:image/png;base64,${result}`;
+
+      setImage(base64Image);
+      setGallery((g) => [base64Image, ...g.slice(0, 7)]);
       setProgress(100);
 
       toast.success("Done");
@@ -95,7 +97,7 @@ export default function ImagePro() {
 
   /* ---------------- UPLOAD ---------------- */
 
-  const uploadFile = async (file: File, setPreview: any, setUrl: any) => {
+  const uploadFile = async (file: File, setPreview: any, setFile: any) => {
     if (!file.type.startsWith("image/")) {
       toast.error("Select image");
       return;
@@ -108,31 +110,7 @@ export default function ImagePro() {
 
     const previewUrl = URL.createObjectURL(file);
     setPreview(previewUrl);
-
-    setUploading(true);
-
-    try {
-      const ext = file.name.split(".").pop() || "png";
-      const path = `image-pro/${crypto.randomUUID()}.${ext}`;
-
-      const { error } = await supabase.storage
-        .from("chat-attachments")
-        .upload(path, file);
-
-      if (error) throw error;
-
-      const { data } = supabase.storage
-        .from("chat-attachments")
-        .getPublicUrl(path);
-
-      setUrl(data.publicUrl);
-    } catch {
-      toast.error("Upload error");
-      setPreview(null);
-      setUrl(null);
-    } finally {
-      setUploading(false);
-    }
+    setFile(file);
   };
 
   /* ---------------- CLEAR ---------------- */
@@ -167,7 +145,7 @@ export default function ImagePro() {
             loading ||
             uploading ||
             (a.needsPrompt && !prompt.trim()) ||
-            (a.needsImage && !uploaded);
+            (a.needsImage && !uploaded && !uploaded2);
 
           return (
             <button
