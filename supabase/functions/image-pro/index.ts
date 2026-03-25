@@ -390,15 +390,23 @@ async function generateImage(prompt: string) {
   const primary = await callPrimary(prompt);
   if (primary) { cacheSet(prompt, primary); return primary; }
 
-  console.log("2) Trying Lovable AI...");
+  console.log("2) Trying Gemini direct API...");
+  const gemini = await callGeminiDirect(prompt);
+  if (gemini) { cacheSet(prompt, gemini); return gemini; }
+
+  console.log("3) Trying Lovable AI...");
   const lovable = await callLovable(prompt);
   if (lovable) return lovable;
 
-  console.log("3) Trying HF servers...");
+  console.log("4) Trying HF Inference API...");
+  const hfInf = await callHFInference(prompt);
+  if (hfInf) { cacheSet(prompt, hfInf); return hfInf; }
+
+  console.log("5) Trying HF Spaces...");
   const hf = await callHF(prompt);
   if (hf) { cacheSet(prompt, hf); return hf; }
 
-  console.log("4) Trying Replicate...");
+  console.log("6) Trying Replicate...");
   const rep = await callReplicate(prompt);
   if (rep) return rep;
 
