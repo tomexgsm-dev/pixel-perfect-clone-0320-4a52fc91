@@ -1,14 +1,14 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
 export const config = {
   verify_jwt: false,
 };
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
 };
 
 class HttpError extends Error {
@@ -306,6 +306,10 @@ async function generateImage(prompt: string) {
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  if (req.method === "GET") {
+    return new Response("OK", { headers: corsHeaders });
   }
 
   try {
