@@ -257,8 +257,9 @@ async function callHFInference(prompt: string): Promise<string | null> {
   }
 
   const models = [
-    "black-forest-labs/FLUX.1-schnell",
-    "stabilityai/stable-diffusion-xl-base-1.0",
+    "strangerzonehf/Flux-Midjourney-Mix2-LoRA",
+    "Shakker-Labs/FLUX.1-dev-LoRA-add-details",
+    "CompVis/stable-diffusion-v1-4",
   ];
 
   for (const model of models) {
@@ -311,7 +312,7 @@ async function callGeminiDirect(prompt: string): Promise<string | null> {
   try {
     console.log("Trying Gemini direct API...");
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
