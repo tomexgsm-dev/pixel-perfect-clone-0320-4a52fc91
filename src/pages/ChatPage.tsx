@@ -28,6 +28,7 @@ export default function ChatPage() {
   const speechSettings = useSpeechSettings();
   const prevMessageCountRef = useRef(0);
 
+  // PRO users = unlimited, anonymous users = localStorage limits
   const canChat = user && isPro ? true : freeLimits.canChat;
 
   const { data: conversation } = useQuery({
@@ -74,7 +75,9 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [selectedModel, setSelectedModel] = useState<AIModelId>("gemini");
   const [attachment, setAttachment] = useState<File | null>(null);
-  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
+  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(
+    null
+  );
   const [uploading, setUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -90,6 +93,7 @@ export default function ChatPage() {
     scrollToBottom();
   }, [dbMessages, streamingMessage]);
 
+  // Auto-read new assistant messages
   useEffect(() => {
     if (!speechSettings.autoRead || !messages.length) {
       prevMessageCountRef.current = messages.length;
@@ -100,13 +104,17 @@ export default function ChatPage() {
       const last = messages[messages.length - 1];
       if (last.role === "assistant" && last.content) {
         const plainText = last.content
+          // usuń bloki kodu
           .replace(/```[\s\S]*?```/g, "")
+          // usuń inline code
           .replace(/`[^`]*`/g, "")
+          // usuń markdownowe znaki formatowania
           .replace(/[#*_~>
 
 \[\]
 
-()!|-]/g, "")
+()!|\-]/g, "")
+          // zamień wielokrotne nowe linie na kropki
           .replace(/\n+/g, ". ")
           .trim();
 
@@ -125,7 +133,7 @@ export default function ChatPage() {
     }
 
     prevMessageCountRef.current = messages.length;
-  }, [messages.length, speechSettings.autoRead]);
+  }, [messages.length, speechSettings.autoRead, speechSettings.rate, speechSettings.voiceURI, speechSettings.voices, messages]);
 
   const handleRate = useCallback(
     async (messageId: string, rating: 1 | -1 | null) => {
@@ -264,11 +272,13 @@ export default function ChatPage() {
 
     if (textareaRef.current) textareaRef.current.style.height = "auto";
 
-    let attachmentData: {
-      url: string;
-      type: string;
-      name: string;
-    } | null = null;
+    let attachmentData:
+      | {
+          url: string;
+          type: string;
+          name: string;
+        }
+      | null = null;
 
     if (currentAttachment) {
       setUploading(true);
@@ -416,7 +426,6 @@ export default function ChatPage() {
                       <FileText className="w-5 h-5 text-muted-foreground" />
                     </div>
                   )}
-
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
                       {attachment.name}
@@ -425,7 +434,6 @@ export default function ChatPage() {
                       {(attachment.size / 1024).toFixed(1)} KB
                     </p>
                   </div>
-
                   <button
                     onClick={removeAttachment}
                     className="p-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
@@ -446,7 +454,6 @@ export default function ChatPage() {
                     if (f) processFile(f);
                   }}
                 />
-
                 <textarea
                   ref={textareaRef}
                   value={input}
@@ -463,7 +470,6 @@ export default function ChatPage() {
                   disabled={!canChat}
                   className="w-full resize-none bg-card border border-border rounded-2xl pl-[8rem] pr-14 py-3.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 shadow-lg disabled:opacity-50"
                 />
-
                 <div className="absolute left-2 bottom-2 flex items-center gap-0.5">
                   <button
                     type="button"
@@ -473,16 +479,13 @@ export default function ChatPage() {
                   >
                     <Paperclip className="w-4 h-4" />
                   </button>
-
                   <VoiceInput
                     onText={(text) => setInput(text)}
                     onSubmit={sendVoiceMessage}
                     disabled={isStreaming || uploading || !canChat}
                   />
-
                   <SpeechSettingsPopover />
                 </div>
-
                 <button
                   type="submit"
                   disabled={
