@@ -290,28 +290,23 @@ function buildPrompt(
 async function generateImage(prompt: string) {
   if (cache.has(prompt)) return cache.get(prompt)!;
 
+  console.log("1) Trying primary generator...");
   const primary = await callPrimary(prompt);
+  if (primary) { cacheSet(prompt, primary); return primary; }
 
-  if (primary) {
-    cacheSet(prompt, primary);
-    return primary;
-  }
-
-  const hf = await callHF(prompt);
-
-  if (hf) {
-    cacheSet(prompt, hf);
-    return hf;
-  }
-
+  console.log("2) Trying Lovable AI...");
   const lovable = await callLovable(prompt);
-
   if (lovable) return lovable;
 
-  const rep = await callReplicate(prompt);
+  console.log("3) Trying HF servers...");
+  const hf = await callHF(prompt);
+  if (hf) { cacheSet(prompt, hf); return hf; }
 
+  console.log("4) Trying Replicate...");
+  const rep = await callReplicate(prompt);
   if (rep) return rep;
 
+  console.error("All generators failed!");
   throw new HttpError(503, "All AI generators offline");
 }
 
