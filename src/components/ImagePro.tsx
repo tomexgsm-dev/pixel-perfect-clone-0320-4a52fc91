@@ -15,6 +15,17 @@ const ACTIONS = [
   { key: "colorize", label: "🎨 Koloruj", needsPrompt: false, needsImage: true },
 ] as const;
 
+const PRESETS: Record<string, string> = {
+  generate: "",
+  product: "product photography, studio light, high detail",
+  logo: "vector logo, clean minimalistic, flat design",
+  banner: "web banner, 16:9, modern, high contrast",
+  social: "instagram post, vibrant colors, aesthetic",
+  restore: "",
+  upscale: "",
+  colorize: "",
+};
+
 export default function ImagePro() {
   const { lang } = useI18n();
 
@@ -48,15 +59,18 @@ export default function ImagePro() {
     }, 700);
 
     try {
+      const preset = PRESETS[action] || "";
+      const finalPrompt = `${preset} ${prompt}`.trim();
+
       const fileToSend =
         ["restore", "upscale", "colorize"].includes(action)
           ? uploaded || uploaded2
           : undefined;
 
       const resultUrl = await generateImage(
-        action,
-        prompt || undefined,
-        fileToSend
+        action,        // ← poprawne
+        finalPrompt,   // ← poprawne
+        fileToSend     // ← poprawne
       );
 
       clearInterval(interval);
@@ -247,3 +261,4 @@ export default function ImagePro() {
     </div>
   );
 }
+
