@@ -150,9 +150,13 @@ async function callHF(prompt: string): Promise<string | null> {
 async function callLovable(prompt: string) {
   const KEY = Deno.env.get("LOVABLE_API_KEY");
 
-  if (!KEY) return null;
+  if (!KEY) {
+    console.error("LOVABLE_API_KEY not set");
+    return null;
+  }
 
   try {
+    console.log("Calling Lovable AI for image generation...");
     const res = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
@@ -162,21 +166,31 @@ async function callLovable(prompt: string) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash-image",
+          model: "google/gemini-3.1-flash-image-preview",
           messages: [{ role: "user", content: prompt }],
           modalities: ["image", "text"],
         }),
       },
     );
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Lovable AI error:", res.status, errText);
+      return null;
+    }
 
     const data = await res.json();
+    const imageUrl = data?.choices?.[0]?.message?.images?.[0]?.image_url?.url;
 
-    return normalizeImage(
-      data?.choices?.[0]?.message?.images?.[0]?.image_url?.url,
-    );
-  } catch {
+    if (imageUrl) {
+      console.log("Lovable AI image generated successfully");
+      return imageUrl;
+    }
+
+    console.error("Lovable AI: no image in response");
+    return null;
+  } catch (e) {
+    console.error("Lovable AI exception:", e);
     return null;
   }
 }
@@ -233,7 +247,149 @@ async function callReplicate(prompt: string) {
   }
 }
 
-/* ---------------- PROMPT ENGINE ---------------- */
+/* ---------------- HF INFERENCE API (free tier) ---------------- */
+
+async function callHFInference(prompt: string): Promise<string | null> {
+  const KEY = Deno.env.get("HF_KEY");
+  if (!KEY) {
+    console.error("HF_KEY not set");
+    return null;
+  }
+
+  const models = [
+    "strangerzonehf/Flux-Midjourney-Mix2-LoRA",
+    "Shakker-Labs/FLUX.1-dev-LoRA-add-details",
+    "CompVis/stable-diffusion-v1-4",
+  ];
+
+  for (const model of models) {
+    try {
+      console.log(`Trying HF Inference: ${model}`);
+      const res = await fetch(
+        `https://api-inference.huggingface.co/models/${model}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ inputs: prompt }),
+          signal: AbortSignal.timeout(30000),
+        },
+      );
+
+      if (!res.ok) {
+        console.error(`HF Inference ${model}: ${res.status}`);
+        continue;
+      }
+
+      const blob = await res.blob();
+      const buffer = await blob.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      console.log(`HF Inference ${model}: success`);
+      return `data:image/png;base64,${btoa(binary)}`;
+    } catch (e) {
+      console.error(`HF Inference ${model} error:`, e);
+    }
+  }
+
+  return null;
+}
+
+/* ---------------- GEMINI DIRECT ---------------- */
+
+async function callGeminiDirect(prompt: string): Promise<string | null> {
+  const KEY = Deno.env.get("GEMINI_KEY");
+  if (!KEY) {
+    console.error("GEMINI_KEY not set");
+    return null;
+  }
+
+  try {
+    console.log("Trying Gemini direct API...");
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+        }),
+        signal: AbortSignal.timeout(30000),
+      },
+    );
+
+    if (!res.ok) {
+      console.error("Gemini direct error:", res.status, await res.text());
+      return null;
+    }
+
+    const data = await res.json();
+    const parts = data?.candidates?.[0]?.content?.parts || [];
+    for (const part of parts) {
+      if (part.inlineData?.mimeType?.startsWith("image/")) {
+        console.log("Gemini direct: image generated");
+        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+      }
+    }
+    console.error("Gemini direct: no image in response");
+    return null;
+  } catch (e) {
+    console.error("Gemini direct exception:", e);
+    return null;
+  }
+}
+
+/* ---------------- TOGETHER.XYZ ---------------- */
+
+async function callTogether(prompt: string): Promise<string | null> {
+  const KEY = Deno.env.get("TOGETHER_KEY");
+  if (!KEY) {
+    console.error("TOGETHER_KEY not set");
+    return null;
+  }
+  try {
+    console.log("Trying Together.xyz FLUX...");
+    const res = await fetch("https://api.together.xyz/v1/images/generations", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "black-forest-labs/FLUX.1-schnell-Free",
+        prompt,
+        width: 1024,
+        height: 1024,
+        steps: 4,
+        n: 1,
+        response_format: "b64_json",
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Together error:", res.status, errText);
+      return null;
+    }
+    const data = await res.json();
+    const b64 = data?.data?.[0]?.b64_json;
+    if (b64) {
+      console.log("Together.xyz: image generated");
+      return `data:image/png;base64,${b64}`;
+    }
+    console.error("Together: no image in response");
+    return null;
+  } catch (e) {
+    console.error("Together exception:", e);
+    return null;
+  }
+}
 
 function buildPrompt(
   action: string,
@@ -276,28 +432,27 @@ function buildPrompt(
 async function generateImage(prompt: string) {
   if (cache.has(prompt)) return cache.get(prompt)!;
 
+  console.log("1) Trying primary generator...");
   const primary = await callPrimary(prompt);
+  if (primary) { cacheSet(prompt, primary); return primary; }
 
-  if (primary) {
-    cacheSet(prompt, primary);
-    return primary;
-  }
+  console.log("2) Trying Gemini direct API...");
+  const gemini = await callGeminiDirect(prompt);
+  if (gemini) { cacheSet(prompt, gemini); return gemini; }
 
-  const hf = await callHF(prompt);
+  console.log("3) Trying Together.xyz...");
+  const together = await callTogether(prompt);
+  if (together) { cacheSet(prompt, together); return together; }
 
-  if (hf) {
-    cacheSet(prompt, hf);
-    return hf;
-  }
-
+  console.log("4) Trying Lovable AI...");
   const lovable = await callLovable(prompt);
-
   if (lovable) return lovable;
 
+  console.log("5) Trying Replicate...");
   const rep = await callReplicate(prompt);
-
   if (rep) return rep;
 
+  console.error("All generators failed!");
   throw new HttpError(503, "All AI generators offline");
 }
 
