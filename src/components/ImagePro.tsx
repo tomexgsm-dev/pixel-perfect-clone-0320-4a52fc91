@@ -15,19 +15,6 @@ const ACTIONS = [
   { key: "colorize", label: "🎨 Koloruj", needsPrompt: false, needsImage: true },
 ] as const;
 
-/* ---------- PRESETY TRYBÓW ---------- */
-
-const PRESETS: Record<string, string> = {
-  generate: "",
-  product: "product photography, studio light, high detail",
-  logo: "vector logo, clean minimalistic, flat design",
-  banner: "web banner, 16:9, modern, high contrast",
-  social: "instagram post, vibrant colors, aesthetic",
-  restore: "photo restoration, remove noise, fix blur",
-  upscale: "super resolution, upscale 2x, high detail",
-  colorize: "colorize black and white photo",
-};
-
 export default function ImagePro() {
   const { lang } = useI18n();
 
@@ -61,25 +48,27 @@ export default function ImagePro() {
     }, 700);
 
     try {
-      const preset = PRESETS[action] || "";
-      const finalPrompt = `${preset} ${prompt}`.trim();
+      const fileToSend =
+        ["restore", "upscale", "colorize"].includes(action)
+          ? uploaded || uploaded2
+          : undefined;
 
-      const fileToSend = uploaded || uploaded2 || null;
-
-      const result = await generateImage(finalPrompt, fileToSend || undefined);
+      const resultUrl = await generateImage(
+        action,
+        prompt || undefined,
+        fileToSend
+      );
 
       clearInterval(interval);
 
-      if (!result) {
+      if (!resultUrl) {
         toast.error("AI returned empty result");
         setProgress(0);
         return;
       }
 
-      const base64Image = `data:image/png;base64,${result}`;
-
-      setImage(base64Image);
-      setGallery((g) => [base64Image, ...g.slice(0, 7)]);
+      setImage(resultUrl);
+      setGallery((g) => [resultUrl, ...g.slice(0, 7)]);
       setProgress(100);
 
       toast.success("Done");
