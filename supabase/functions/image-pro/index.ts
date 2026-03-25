@@ -1,8 +1,14 @@
+export const config = {
+  verify_jwt: false,
+};
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 class HttpError extends Error {
@@ -22,6 +28,7 @@ function cacheSet(prompt: string, image: string) {
     const first = cache.keys().next().value;
     cache.delete(first);
   }
+
   cache.set(prompt, image);
 }
 
@@ -49,7 +56,9 @@ async function callPrimary(prompt: string): Promise<string | null> {
   try {
     const res = await fetch(`${API}/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ prompt }),
       signal: AbortSignal.timeout(30000),
     });
@@ -93,7 +102,9 @@ function getServer() {
 }
 
 function markDown(url: string) {
-  AI_SERVERS = AI_SERVERS.map((s) => (s.url === url ? { ...s, status: "down" } : s));
+  AI_SERVERS = AI_SERVERS.map((s) =>
+    s.url === url ? { ...s, status: "down" } : s,
+  );
 }
 
 /* ---------------- HF CALL ---------------- */
@@ -105,7 +116,9 @@ async function callHF(prompt: string): Promise<string | null> {
     try {
       const res = await fetch(`${server.url}/run/predict`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           data: [prompt, 768, "1:1", null, 15, 3],
         }),
@@ -140,24 +153,29 @@ async function callLovable(prompt: string) {
   if (!KEY) return null;
 
   try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${KEY}`,
-        "Content-Type": "application/json",
+    const res = await fetch(
+      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash-image",
+          messages: [{ role: "user", content: prompt }],
+          modalities: ["image", "text"],
+        }),
       },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image",
-        messages: [{ role: "user", content: prompt }],
-        modalities: ["image", "text"],
-      }),
-    });
+    );
 
     if (!res.ok) return null;
 
     const data = await res.json();
 
-    return normalizeImage(data?.choices?.[0]?.message?.images?.[0]?.image_url?.url);
+    return normalizeImage(
+      data?.choices?.[0]?.message?.images?.[0]?.image_url?.url,
+    );
   } catch {
     return null;
   }
@@ -171,20 +189,23 @@ async function callReplicate(prompt: string) {
   if (!API) return null;
 
   try {
-    const create = await fetch("https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${API}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        input: {
-          prompt,
-          num_outputs: 1,
-          go_fast: true,
+    const create = await fetch(
+      "https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${API}`,
+          "Content-Type": "application/json",
         },
-      }),
-    });
+        body: JSON.stringify({
+          input: {
+            prompt,
+            num_outputs: 1,
+            go_fast: true,
+          },
+        }),
+      },
+    );
 
     const prediction = await create.json();
 
@@ -192,7 +213,9 @@ async function callReplicate(prompt: string) {
       await new Promise((r) => setTimeout(r, 2000));
 
       const poll = await fetch(prediction.urls.get, {
-        headers: { Authorization: `Bearer ${API}` },
+        headers: {
+          Authorization: `Bearer ${API}`,
+        },
       });
 
       const data = await poll.json();
@@ -212,7 +235,12 @@ async function callReplicate(prompt: string) {
 
 /* ---------------- PROMPT ENGINE ---------------- */
 
-function buildPrompt(action: string, prompt: string, image?: string, image2?: string) {
+function buildPrompt(
+  action: string,
+  prompt: string,
+  image?: string,
+  image2?: string,
+) {
   switch (action) {
     case "product":
       if (image && image2)
@@ -276,19 +304,31 @@ async function generateImage(prompt: string) {
 /* ---------------- MAIN ---------------- */
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
 
   try {
-    const { action, prompt, image, image2 } = await req.json();
+    const body = await req.json();
 
-    const finalPrompt = buildPrompt(action, prompt || "", image, image2);
+    const action = body?.action;
+    const prompt = body?.prompt || "";
+    const image = body?.image;
+    const image2 = body?.image2;
 
-    if (!finalPrompt) throw new HttpError(400, "Prompt required");
+    const finalPrompt = buildPrompt(action, prompt, image, image2);
+
+    if (!finalPrompt) {
+      throw new HttpError(400, "Prompt required");
+    }
 
     const result = await generateImage(finalPrompt);
 
     return new Response(JSON.stringify({ image: result }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+      },
     });
   } catch (e) {
     const status = e instanceof HttpError ? e.status : 500;
@@ -299,7 +339,10 @@ serve(async (req) => {
       }),
       {
         status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
       },
     );
   }
