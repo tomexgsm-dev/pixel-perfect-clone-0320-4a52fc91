@@ -3,7 +3,7 @@ export async function generateImage(
   prompt?: string,
   file?: File
 ) {
-  const baseUrl = import.meta.env.NEXUS_IMAGE_API;
+  const baseUrl = import.meta.env.VITE_NEXUS_IMAGE_API;
   const url = `${baseUrl}/${action}`;
 
   let options: RequestInit;
