@@ -2,7 +2,7 @@ import { Layout } from "@/components/Layout";
 import { Sparkles, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { useI18n } from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
 

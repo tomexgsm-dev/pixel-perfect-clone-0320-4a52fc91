@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { Layout } from "@/components/Layout";
 import { ChatMessage } from "@/components/ChatMessage";
 import { useChatStream, type Message } from "@/hooks/use-chat-stream";
