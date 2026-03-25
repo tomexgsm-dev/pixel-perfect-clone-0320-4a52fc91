@@ -345,6 +345,51 @@ async function callGeminiDirect(prompt: string): Promise<string | null> {
   }
 }
 
+/* ---------------- TOGETHER.XYZ ---------------- */
+
+async function callTogether(prompt: string): Promise<string | null> {
+  const KEY = Deno.env.get("TOGETHER_KEY");
+  if (!KEY) {
+    console.error("TOGETHER_KEY not set");
+    return null;
+  }
+  try {
+    console.log("Trying Together.xyz FLUX...");
+    const res = await fetch("https://api.together.xyz/v1/images/generations", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "black-forest-labs/FLUX.1-schnell-Free",
+        prompt,
+        width: 1024,
+        height: 1024,
+        steps: 4,
+        n: 1,
+        response_format: "b64_json",
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Together error:", res.status, errText);
+      return null;
+    }
+    const data = await res.json();
+    const b64 = data?.data?.[0]?.b64_json;
+    if (b64) {
+      console.log("Together.xyz: image generated");
+      return `data:image/png;base64,${b64}`;
+    }
+    console.error("Together: no image in response");
+    return null;
+  } catch (e) {
+    console.error("Together exception:", e);
+    return null;
+  }
+}
 
 function buildPrompt(
   action: string,
