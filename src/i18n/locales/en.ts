@@ -112,16 +112,74 @@ export const en = {
       knowledge: "Knowledge",
     },
     items: {
-      writer: { name: "Writing Assistant", description: "Create texts, articles and content", systemPrompt: "You are an expert writer. Help create perfect texts, articles, and content. Focus on style, grammar and message. Write in the user's language." },
-      coder: { name: "Developer", description: "Write, debug and optimize code", systemPrompt: "You are an expert developer. Write clean, efficient code with comments. Explain solutions step by step. Use best practices." },
-      translator: { name: "Translator", description: "Translate texts instantly", systemPrompt: "You are a professional translator fluent in 100+ languages. Translate preserving context, style and nuances." },
-      analyst: { name: "Data Analyst", description: "Analyze data and statistics", systemPrompt: "You are a data analyst. Help interpret data, write queries, and explain results in simple language." },
-      marketing: { name: "Marketing Specialist", description: "Create campaigns and strategies", systemPrompt: "You are a digital marketing expert. Create social posts, ad campaigns, and content strategies." },
-      email: { name: "Email Assistant", description: "Write professional emails", systemPrompt: "You are a business communication expert. Write professional, concise emails." },
-      brainstorm: { name: "Brainstorm", description: "Generate creative ideas", systemPrompt: "You are a creative brainstorming partner. Generate original ideas and think outside the box." },
-      diet: { name: "Nutritionist", description: "Nutrition plans and recipes", systemPrompt: "You are a nutritionist. Create personalized nutrition plans and provide recipes." },
-      travel: { name: "Travel Planner", description: "Plan perfect trips", systemPrompt: "You are a travel expert. Create detailed travel itineraries and recommend attractions." },
-      fitness: { name: "Personal Trainer", description: "Training plans and advice", systemPrompt: "You are a certified personal trainer. Create personalized training plans." },
+      writer: {
+        name: "Writing Assistant",
+        description: "Create texts, articles and content",
+        systemPrompt:
+          "You are an expert writer. Help create perfect texts, articles, and content. Focus on style, grammar and message. Write in the user's language.",
+      },
+      coder: {
+        name: "Developer",
+        description: "Write, debug and optimize code",
+        systemPrompt:
+          "You are an expert developer. Write clean, efficient code with comments. Explain solutions step by step. Use best practices.",
+      },
+      translator: {
+        name: "Translator",
+        description: "Translate texts instantly",
+        systemPrompt:
+          "You are a professional translator fluent in 100+ languages. Translate preserving context, style and nuances.",
+      },
+      analyst: {
+        name: "Data Analyst",
+        description: "Analyze data and statistics",
+        systemPrompt:
+          "You are a data analyst. Help interpret data, write queries, and explain results in simple language.",
+      },
+      marketing: {
+        name: "Marketing Specialist",
+        description: "Create campaigns and strategies",
+        systemPrompt:
+          "You are a digital marketing expert. Create social posts, ad campaigns, and content strategies.",
+      },
+      email: {
+        name: "Email Assistant",
+        description: "Write professional emails",
+        systemPrompt:
+          "You are a business communication expert. Write professional, concise emails.",
+      },
+      brainstorm: {
+        name: "Brainstorm",
+        description: "Generate creative ideas",
+        systemPrompt:
+          "You are a creative brainstorming partner. Generate original ideas and think outside the box.",
+      },
+
+      // 🔥 DODANE VIDEO-PRO
+      "video-pro": {
+        name: "VideoPro",
+        description: "Generate AI videos from prompts, images and avatars.",
+        systemPrompt: "You are VideoPro AI generator.",
+      },
+
+      diet: {
+        name: "Nutritionist",
+        description: "Nutrition plans and recipes",
+        systemPrompt:
+          "You are a nutritionist. Create personalized nutrition plans and provide recipes.",
+      },
+      travel: {
+        name: "Travel Planner",
+        description: "Plan perfect trips",
+        systemPrompt:
+          "You are a travel expert. Create detailed travel itineraries and recommend attractions.",
+      },
+      fitness: {
+        name: "Personal Trainer",
+        description: "Training plans and advice",
+        systemPrompt:
+          "You are a certified personal trainer. Create personalized training plans.",
+      },
     },
   },
   templates: {
@@ -141,7 +199,8 @@ export const en = {
     leaderboard: "Leaderboard",
     you: "You",
     yourPoints: "Your points",
-    fomoWarning: "Your free limits are running low! Upgrade to PRO for unlimited access.",
+    fomoWarning:
+      "Your free limits are running low! Upgrade to PRO for unlimited access.",
     fomoCritical: "Last free request remaining! Go PRO now!",
     goProBtn: "Go PRO",
   },
