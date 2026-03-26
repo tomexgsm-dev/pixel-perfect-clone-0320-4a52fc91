@@ -1,8 +1,8 @@
 import { useState, useRef } from "react";
-import { Loader2, Download, Trash2 } from "lucide-react";
+import { Loader2, Download, Trash2, Sparkles, Atom } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/i18n";
-import { generateImage } from "@/lib/api/image";
+import { generateImage, promptAI, blendPro } from "@/lib/api/image";
 
 const ACTIONS = [
   { key: "generate", label: "🎨 Generuj", needsPrompt: true, needsImage: false },
@@ -47,9 +47,59 @@ export default function ImagePro() {
   const fileRef = useRef<HTMLInputElement>(null);
   const fileRef2 = useRef<HTMLInputElement>(null);
 
+  /* ---------------- AI PROMPT ASSISTANT ---------------- */
+
+  const handlePromptAI = async () => {
+    if (!prompt.trim()) {
+      toast.error("Najpierw wpisz prompt");
+      return;
+    }
+
+    try {
+      toast.info("AI analizuje prompt...");
+
+      const result = await promptAI(prompt);
+
+      if (result.suggestions) {
+        setPrompt(result.suggestions);
+        toast.success("AI wygenerowało nowe propozycje!");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Błąd AI Prompt");
+    }
+  };
+
   /* ---------------- GENERATE ---------------- */
 
   const callAPI = async (action: string) => {
+    if (action === "blend-pro") {
+      if (!uploaded || !uploaded2) {
+        toast.error("Wgraj dwa zdjęcia");
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setProgress(10);
+
+        const resultUrl = await blendPro(uploaded, uploaded2, prompt, 0.5);
+
+        setImage(resultUrl);
+        setGallery((g) => [resultUrl, ...g.slice(0, 7)]);
+        setProgress(100);
+        toast.success("Blend PRO gotowy!");
+      } catch (err) {
+        console.error(err);
+        toast.error("Blend PRO error");
+      } finally {
+        setLoading(false);
+        setProgress(0);
+      }
+
+      return;
+    }
+
     setLoading(true);
     setProgress(5);
     setImage(null);
@@ -67,11 +117,7 @@ export default function ImagePro() {
           ? uploaded || uploaded2
           : undefined;
 
-      const resultUrl = await generateImage(
-        action,        // ← poprawne
-        finalPrompt,   // ← poprawne
-        fileToSend     // ← poprawne
-      );
+      const resultUrl = await generateImage(action, finalPrompt, fileToSend);
 
       clearInterval(interval);
 
@@ -142,6 +188,14 @@ export default function ImagePro() {
         onChange={(e) => setPrompt(e.target.value)}
       />
 
+      {/* AI PROMPT BUTTON */}
+      <button
+        onClick={handlePromptAI}
+        className="px-4 py-2 mb-4 rounded-xl text-sm bg-purple-600 text-white hover:bg-purple-700"
+      >
+        🤖 AI Prompt
+      </button>
+
       <div className="flex flex-wrap gap-2 mb-4">
         {ACTIONS.map((a) => {
           const disabled =
@@ -161,6 +215,15 @@ export default function ImagePro() {
             </button>
           );
         })}
+
+        {/* BLEND PRO BUTTON */}
+        <button
+          onClick={() => callAPI("blend-pro")}
+          disabled={!uploaded || !uploaded2}
+          className="px-4 py-2 rounded-xl text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40"
+        >
+          🧬 Blend PRO
+        </button>
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-4">
