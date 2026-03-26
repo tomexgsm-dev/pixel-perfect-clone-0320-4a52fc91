@@ -1,8 +1,21 @@
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabaseClient";
 
+// Typ rekordu wideo
+export type VideoRecord = {
+  id: string;
+  url: string;
+  prompt: string;
+  style?: string;
+  duration?: number;
+  ratio?: string;
+  resolution?: string;
+  created_at: string;
+};
+
+// Zapis wideo do galerii
 export async function saveVideoToGallery(
   file: File,
-  options: {
+  metadata: {
     prompt: string;
     style?: string;
     duration?: number;
@@ -10,60 +23,57 @@ export async function saveVideoToGallery(
     resolution?: string;
   }
 ) {
-  const fileExt = file.name.split(".").pop() || "mp4";
-  const fileName = `${crypto.randomUUID()}.${fileExt}`;
-  const filePath = `${fileName}`;
+  // 1. Upload pliku do Supabase Storage
+  const filePath = `videos/${Date.now()}-${file.name}`;
 
-  // Upload to Supabase Storage
-  const { error: uploadError } = await supabase.storage
-    .from("generated-videos")
-    .upload(filePath, file, {
-      cacheControl: "3600",
-      upsert: false,
-    });
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from("videos")
+    .upload(filePath, file);
 
   if (uploadError) throw uploadError;
 
-  // Get public URL
-  const { data: publicUrlData } = supabase.storage
-    .from("generated-videos")
-    .getPublicUrl(filePath);
+  const publicUrl = supabase.storage
+    .from("videos")
+    .getPublicUrl(filePath).data.publicUrl;
 
-  const publicUrl = publicUrlData.publicUrl;
-
-  // Save DB record
-  const { error: dbError } = await supabase.from("videos").insert({
+  // 2. Zapis metadanych do tabeli
+  const { error: insertError } = await supabase.from("videos").insert({
     url: publicUrl,
-    prompt: options.prompt,
-    style: options.style,
-    duration: options.duration,
-    ratio: options.ratio,
-    resolution: options.resolution,
+    prompt: metadata.prompt,
+    style: metadata.style,
+    duration: metadata.duration,
+    ratio: metadata.ratio,
+    resolution: metadata.resolution,
   });
 
-  if (dbError) throw dbError;
+  if (insertError) throw insertError;
 
   return publicUrl;
 }
 
-export async function getVideoGallery() {
+// Pobieranie galerii
+export async function getVideoGallery(): Promise<VideoRecord[]> {
   const { data, error } = await supabase
     .from("videos")
     .select("*")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return data;
+
+  return data as VideoRecord[];
 }
 
+// Usuwanie wideo
 export async function deleteVideo(id: string, url: string) {
-  const fileName = url.split("/").pop();
+  // 1. Usuń rekord z tabeli
+  const { error: deleteError } = await supabase
+    .from("videos")
+    .delete()
+    .eq("id", id);
 
-  if (fileName) {
-    await supabase.storage
-      .from("generated-videos")
-      .remove([fileName]);
-  }
+  if (deleteError) throw deleteError;
 
-  await supabase.from("videos").delete().eq("id", id);
+  // 2. Usuń plik ze storage
+  const path = url.split("/").slice(-1)[0]; // nazwa pliku
+  await supabase.storage.from("videos").remove([`videos/${path}`]);
 }
