@@ -9,9 +9,11 @@ import {
   PanelRightOpen,
   Loader2,
   SparklesIcon,
+  Trash2,
 } from "lucide-react";
 import { generateImage, promptAI, blendPro } from "@/lib/api/image";
 import { cn } from "@/lib/utils";
+import { saveImageToGallery, getGallery, deleteImage } from "@/lib/api/gallery";
 
 /* ------------------------------------------------
    TYPES
@@ -68,6 +70,9 @@ export default function ImagePro() {
 
   const [error, setError] = useState<string | null>(null);
 
+  const [gallery, setGallery] = useState<any[]>([]);
+  const [isLoadingGallery, setIsLoadingGallery] = useState(true);
+
   const canUseImageTool = useMemo(
     () => tool && tool !== "blend",
     [tool]
@@ -77,6 +82,20 @@ export default function ImagePro() {
     () => tool === "blend",
     [tool]
   );
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await getGallery();
+        setGallery(data);
+      } catch (e) {
+        console.error("Failed to load gallery", e);
+      } finally {
+        setIsLoadingGallery(false);
+      }
+    }
+    void load();
+  }, []);
 
   /* ------------------------------------------------
      HANDLERS
@@ -88,6 +107,17 @@ export default function ImagePro() {
       setIsGenerating(true);
       const url = await generateImage(action, prompt);
       setImageUrl(url);
+
+      // Zapis do galerii w Supabase
+      try {
+        const blob = await fetch(url).then((r) => r.blob());
+        const file = new File([blob], "generated.png", { type: blob.type });
+        await saveImageToGallery(file, prompt || "");
+        const data = await getGallery();
+        setGallery(data);
+      } catch (err) {
+        console.error("Gallery save failed", err);
+      }
     } catch (e: any) {
       setError(e?.message || "Image generation failed");
     } finally {
@@ -126,7 +156,12 @@ export default function ImagePro() {
       setError(null);
       setIsGenerating(true);
       const mixValue = blendMix / 100;
-      const url = await blendPro(fileBlendA, fileBlendB, prompt || "Blend these two images", mixValue);
+      const url = await blendPro(
+        fileBlendA,
+        fileBlendB,
+        prompt || "Blend these two images",
+        mixValue
+      );
       setImageUrl(url);
     } catch (e: any) {
       setError(e?.message || "Blend PRO failed");
@@ -230,7 +265,6 @@ export default function ImagePro() {
             </div>
           </div>
         </motion.div>
-
         {/* PROMPT + CONTROLS */}
         <div className="space-y-4">
           {/* Prompt input */}
@@ -466,6 +500,42 @@ export default function ImagePro() {
             {/* subtle glow overlay */}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background/80 via-background/0 to-transparent" />
           </div>
+        </div>
+        {/* GALLERY */}
+        <div className="mt-8">
+          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+            <ImageIcon className="w-4 h-4 text-violet-400" />
+            Your Gallery
+          </h3>
+
+          {isLoadingGallery ? (
+            <p className="text-xs text-muted-foreground">Loading gallery…</p>
+          ) : gallery.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No images yet.</p>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {gallery.map((img) => (
+                <div
+                  key={img.id}
+                  className="relative group rounded-2xl overflow-hidden border border-border bg-card"
+                >
+                  <img
+                    src={img.url}
+                    className="w-full h-32 object-cover"
+                  />
+                  <button
+                    onClick={async () => {
+                      await deleteImage(img.id, img.url);
+                      setGallery((prev) => prev.filter((i) => i.id !== img.id));
+                    }}
+                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-white opacity-0 group-hover:opacity-100 transition"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
