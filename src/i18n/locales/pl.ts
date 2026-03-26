@@ -67,8 +67,10 @@ export const pl = {
     loading: "Ładowanie...",
     error: "Nie udało się załadować rozmowy.",
     emptyTitle: "Jak mogę Ci pomóc?",
-    emptySubtitle: "Jestem inteligentnym asystentem AI. Zapytaj mnie o cokolwiek — kod, pisanie, analizę lub po prostu porozmawiaj.",
-    appEmptySubtitle: "Specjalistyczny asystent AI gotowy do pomocy. Napisz swoją pierwszą wiadomość.",
+    emptySubtitle:
+      "Jestem inteligentnym asystentem AI. Zapytaj mnie o cokolwiek — kod, pisanie, analizę lub po prostu porozmawiaj.",
+    appEmptySubtitle:
+      "Specjalistyczny asystent AI gotowy do pomocy. Napisz swoją pierwszą wiadomość.",
     memory: "Nexus AI pamięta kontekst tej rozmowy",
     copy: "Kopiuj",
     goodResponse: "Dobra odpowiedź",
@@ -112,16 +114,74 @@ export const pl = {
       knowledge: "Wiedza",
     },
     items: {
-      writer: { name: "Asystent pisania", description: "Twórz teksty, artykuły i treści", systemPrompt: "Jesteś ekspertem od pisania. Pomagasz tworzyć doskonałe teksty. Pisz w języku użytkownika." },
-      coder: { name: "Programista", description: "Pisz, debuguj i optymalizuj kod", systemPrompt: "Jesteś ekspertem programistą. Pisz czysty, wydajny kod z komentarzami." },
-      translator: { name: "Tłumacz", description: "Tłumacz teksty natychmiast", systemPrompt: "Jesteś profesjonalnym tłumaczem. Tłumacz zachowując kontekst i styl." },
-      analyst: { name: "Analityk danych", description: "Analizuj dane i statystyki", systemPrompt: "Jesteś analitykiem danych. Pomagasz interpretować dane i pisać zapytania." },
-      marketing: { name: "Specjalista marketingu", description: "Twórz kampanie i strategie", systemPrompt: "Jesteś ekspertem marketingu cyfrowego. Twórz posty, kampanie i strategie." },
-      email: { name: "Asystent email", description: "Pisz profesjonalne emaile", systemPrompt: "Jesteś ekspertem komunikacji biznesowej. Pisz profesjonalne, zwięzłe emaile." },
-      brainstorm: { name: "Burza mózgów", description: "Generuj kreatywne pomysły", systemPrompt: "Jesteś kreatywnym partnerem do burzy mózgów. Generuj oryginalne pomysły." },
-      diet: { name: "Dietetyk", description: "Plany żywieniowe i przepisy", systemPrompt: "Jesteś dietetykiem. Twórz spersonalizowane plany żywieniowe i przepisy." },
-      travel: { name: "Planista podróży", description: "Planuj idealne podróże", systemPrompt: "Jesteś ekspertem od podróży. Twórz szczegółowe plany podróży." },
-      fitness: { name: "Trener personalny", description: "Plany treningowe i porady", systemPrompt: "Jesteś certyfikowanym trenerem personalnym. Twórz plany treningowe." },
+      writer: {
+        name: "Asystent pisania",
+        description: "Twórz teksty, artykuły i treści",
+        systemPrompt:
+          "Jesteś ekspertem od pisania. Pomagasz tworzyć doskonałe teksty. Pisz w języku użytkownika.",
+      },
+      coder: {
+        name: "Programista",
+        description: "Pisz, debuguj i optymalizuj kod",
+        systemPrompt:
+          "Jesteś ekspertem programistą. Pisz czysty, wydajny kod z komentarzami.",
+      },
+      translator: {
+        name: "Tłumacz",
+        description: "Tłumacz teksty natychmiast",
+        systemPrompt:
+          "Jesteś profesjonalnym tłumaczem. Tłumacz zachowując kontekst i styl.",
+      },
+      analyst: {
+        name: "Analityk danych",
+        description: "Analizuj dane i statystyki",
+        systemPrompt:
+          "Jesteś analitykiem danych. Pomagasz interpretować dane i pisać zapytania.",
+      },
+      marketing: {
+        name: "Specjalista marketingu",
+        description: "Twórz kampanie i strategie",
+        systemPrompt:
+          "Jesteś ekspertem marketingu cyfrowego. Twórz posty, kampanie i strategie.",
+      },
+      email: {
+        name: "Asystent email",
+        description: "Pisz profesjonalne emaile",
+        systemPrompt:
+          "Jesteś ekspertem komunikacji biznesowej. Pisz profesjonalne, zwięzłe emaile.",
+      },
+      brainstorm: {
+        name: "Burza mózgów",
+        description: "Generuj kreatywne pomysły",
+        systemPrompt:
+          "Jesteś kreatywnym partnerem do burzy mózgów. Generuj oryginalne pomysły.",
+      },
+
+      // 🔥 DODANE VIDEO-PRO
+      "video-pro": {
+        name: "VideoPro",
+        description: "Generuj wideo AI z promptów, obrazów i avatarów.",
+        systemPrompt: "Jesteś generatorem wideo VideoPro.",
+      },
+
+      diet: {
+        name: "Dietetyk",
+        description: "Plany żywieniowe i przepisy",
+        systemPrompt:
+          "Jesteś dietetykiem. Twórz spersonalizowane plany żywieniowe i przepisy.",
+      },
+      travel: {
+        name: "Planista podróży",
+        description: "Planuj idealne podróże",
+        systemPrompt:
+          "Jesteś ekspertem od podróży. Twórz szczegółowe plany podróży.",
+      },
+      fitness: {
+        name: "Trener personalny",
+        description: "Plany treningowe i porady",
+        systemPrompt:
+          "Jesteś certyfikowanym trenerem personalnym. Twórz plany treningowe.",
+      },
     },
   },
   templates: {
@@ -141,8 +201,10 @@ export const pl = {
     leaderboard: "Ranking graczy",
     you: "Ty",
     yourPoints: "Twoje punkty",
-    fomoWarning: "Kończy się Twój darmowy limit! Przejdź na PRO, by generować bez ograniczeń.",
-    fomoCritical: "Zostało Ci ostatnie darmowe zapytanie! Wejdź na PRO teraz!",
+    fomoWarning:
+      "Kończy się Twój darmowy limit! Przejdź na PRO, by generować bez ograniczeń.",
+    fomoCritical:
+      "Zostało Ci ostatnie darmowe zapytanie! Wejdź na PRO teraz!",
     goProBtn: "Przejdź na PRO",
   },
 };
