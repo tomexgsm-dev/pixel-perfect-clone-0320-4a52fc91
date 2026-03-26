@@ -14,6 +14,7 @@ export async function saveVideoToGallery(
   const fileName = `${crypto.randomUUID()}.${fileExt}`;
   const filePath = `${fileName}`;
 
+  // Upload to Supabase Storage
   const { error: uploadError } = await supabase.storage
     .from("generated-videos")
     .upload(filePath, file, {
@@ -23,12 +24,14 @@ export async function saveVideoToGallery(
 
   if (uploadError) throw uploadError;
 
+  // Get public URL
   const { data: publicUrlData } = supabase.storage
     .from("generated-videos")
     .getPublicUrl(filePath);
 
   const publicUrl = publicUrlData.publicUrl;
 
+  // Save DB record
   const { error: dbError } = await supabase.from("videos").insert({
     url: publicUrl,
     prompt: options.prompt,
@@ -64,4 +67,3 @@ export async function deleteVideo(id: string, url: string) {
 
   await supabase.from("videos").delete().eq("id", id);
 }
-
