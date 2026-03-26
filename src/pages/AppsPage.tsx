@@ -24,6 +24,10 @@ const APP_DEFS: AppDef[] = [
   { id: "marketing", emoji: "📣", color: "from-pink-500/20 to-rose-600/20 border-pink-500/30", category: "productivity" },
   { id: "email", emoji: "📧", color: "from-sky-500/20 to-blue-600/20 border-sky-500/30", category: "productivity" },
   { id: "brainstorm", emoji: "💡", color: "from-yellow-500/20 to-orange-600/20 border-yellow-500/30", category: "creative" },
+
+  // 🔥 NOWA APLIKACJA: VideoPro
+  { id: "video-pro", emoji: "🎬", color: "from-purple-500/20 to-fuchsia-600/20 border-purple-500/30", category: "creative" },
+
   { id: "diet", emoji: "🥗", color: "from-lime-500/20 to-green-600/20 border-lime-500/30", category: "knowledge" },
   { id: "travel", emoji: "✈️", color: "from-indigo-500/20 to-blue-600/20 border-indigo-500/30", category: "knowledge" },
   { id: "fitness", emoji: "💪", color: "from-red-500/20 to-rose-600/20 border-red-500/30", category: "knowledge" },
@@ -42,7 +46,12 @@ export default function AppsPage() {
       const item = t.apps.items[app.id as keyof typeof t.apps.items];
       const { data, error } = await supabase
         .from("conversations")
-        .insert({ title: item.name, app_id: app.id, system_prompt: item.systemPrompt, user_id: user?.id || null })
+        .insert({
+          title: item.name,
+          app_id: app.id,
+          system_prompt: item.systemPrompt,
+          user_id: user?.id || null,
+        })
         .select()
         .single();
       if (error) throw error;
@@ -62,10 +71,12 @@ export default function AppsPage() {
     { id: "knowledge", label: t.apps.categories.knowledge },
   ];
 
-  const filtered = APP_DEFS.filter(app => {
+  const filtered = APP_DEFS.filter((app) => {
     const item = t.apps.items[app.id as keyof typeof t.apps.items];
     if (!item) return false;
-    const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase()) || item.description.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch =
+      item.name.toLowerCase().includes(search.toLowerCase()) ||
+      item.description.toLowerCase().includes(search.toLowerCase());
     const matchesCategory = category === "all" || app.category === category;
     return matchesSearch && matchesCategory;
   });
@@ -78,7 +89,9 @@ export default function AppsPage() {
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <h1 className="text-2xl font-bold">{t.apps.title}</h1>
-                <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full font-medium">{t.apps.beta}</span>
+                <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full font-medium">
+                  {t.apps.beta}
+                </span>
               </div>
               <p className="text-sm text-muted-foreground">{t.apps.subtitle}</p>
             </div>
@@ -95,7 +108,7 @@ export default function AppsPage() {
           </div>
 
           <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
-            {CATEGORIES.map(cat => (
+            {CATEGORIES.map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setCategory(cat.id)}
@@ -112,7 +125,7 @@ export default function AppsPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {filtered.map(app => {
+            {filtered.map((app) => {
               const item = t.apps.items[app.id as keyof typeof t.apps.items];
               if (!item) return null;
               return (
@@ -120,13 +133,27 @@ export default function AppsPage() {
                   key={app.id}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => createMutation.mutate(app)}
+                  onClick={() => {
+                    // 🔥 SPECJALNE ZACHOWANIE DLA VIDEO-PRO
+                    if (app.id === "video-pro") {
+                      navigate("/video-pro");
+                      return;
+                    }
+                    createMutation.mutate(app);
+                  }}
                   disabled={createMutation.isPending}
-                  className={cn("w-full text-left p-4 rounded-2xl border bg-gradient-to-br transition-all shadow-sm hover:shadow-lg disabled:opacity-60", app.color)}
+                  className={cn(
+                    "w-full text-left p-4 rounded-2xl border bg-gradient-to-br transition-all shadow-sm hover:shadow-lg disabled:opacity-60",
+                    app.color
+                  )}
                 >
                   <div className="text-2xl mb-2">{app.emoji}</div>
-                  <div className="font-bold text-sm text-foreground">{item.name}</div>
-                  <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</div>
+                  <div className="font-bold text-sm text-foreground">
+                    {item.name}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                    {item.description}
+                  </div>
                 </motion.button>
               );
             })}
@@ -143,3 +170,4 @@ export default function AppsPage() {
     </Layout>
   );
 }
+
