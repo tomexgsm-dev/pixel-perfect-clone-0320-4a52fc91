@@ -41,7 +41,9 @@ export default function VideoPro() {
     })();
   }, []);
 
-  async function handleGenerate(mode: "text" | "image" | "avatar" | "music" | "social") {
+  async function handleGenerate(
+    mode: "text" | "image" | "avatar" | "music" | "social"
+  ) {
     if (!VIDEO_API) {
       console.error("VITE_NEXUS_VIDEO_API is not set");
       return;
@@ -232,13 +234,18 @@ export default function VideoPro() {
             </button>
           </div>
 
+          {/* ⭐ NOWY LOADER */}
           {isLoading && (
-            <div className="mt-4 h-1 w-full bg-[#151524] rounded-full overflow-hidden">
-              <div className="h-full w-1/3 bg-purple-500 animate-pulse" />
+            <div className="flex flex-col items-center justify-center py-10 gap-4">
+              <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-sm text-purple-300 animate-pulse">
+                Generowanie wideo… proszę czekać
+              </p>
             </div>
           )}
         </div>
 
+        {/* PREVIEW */}
         <div className="bg-[#0b0b12] border border-[#262637] rounded-xl p-4 flex flex-col gap-3">
           <div className="text-sm font-medium">Preview</div>
           {videoUrl ? (
@@ -264,6 +271,7 @@ export default function VideoPro() {
         </div>
       </div>
 
+      {/* HISTORY */}
       <div className="mt-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-[#e5e5ff]">
