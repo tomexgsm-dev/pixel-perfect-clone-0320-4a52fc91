@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { MessageSquare, Plus, Trash2, Menu, X, Sparkles, Image, LayoutGrid, Crown, LogOut, LogIn, Layers, Wand2 } from "lucide-react";
+import { MessageSquare, Plus, Trash2, Menu, X, Sparkles, Image, LayoutGrid, Crown, LogOut, LogIn, Layers, Clapperboard } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -76,7 +76,6 @@ export function Layout({ children }: LayoutProps) {
   });
 
   const handleNewChat = () => createMutation.mutate({});
-
   const handleSignOut = async () => {
     await signOut();
     navigate("/");
@@ -122,7 +121,6 @@ export function Layout({ children }: LayoutProps) {
             {t.sidebar.newConversation}
           </button>
 
-          {/* Images */}
           <Link
             to="/images"
             className={cn(
@@ -136,7 +134,6 @@ export function Layout({ children }: LayoutProps) {
             {t.sidebar.images}
           </Link>
 
-          {/* Image Pro */}
           <Link
             to="/image-pro"
             className={cn(
@@ -146,11 +143,11 @@ export function Layout({ children }: LayoutProps) {
                 : "text-sidebar-foreground hover:bg-sidebar-accent/50 border-transparent"
             )}
           >
-            <Wand2 className="w-4 h-4" />
+            <Clapperboard className="w-4 h-4" />
             Image Pro
           </Link>
 
-          {/* ⭐ NEW: VideoPro */}
+          {/* 🎬 VideoPro */}
           <Link
             to="/apps/video-pro"
             className={cn(
@@ -160,11 +157,10 @@ export function Layout({ children }: LayoutProps) {
                 : "text-sidebar-foreground hover:bg-sidebar-accent/50 border-transparent"
             )}
           >
-            <Wand2 className="w-4 h-4" />
+            <Clapperboard className="w-4 h-4" />
             VideoPro
           </Link>
 
-          {/* Apps */}
           <Link
             to="/apps"
             className={cn(
@@ -178,7 +174,6 @@ export function Layout({ children }: LayoutProps) {
             {t.sidebar.apps}
           </Link>
 
-          {/* Templates */}
           <Link
             to="/templates"
             className={cn(
@@ -192,7 +187,6 @@ export function Layout({ children }: LayoutProps) {
             {t.templates.sidebarLabel}
           </Link>
 
-          {/* Pricing */}
           <Link
             to="/pricing"
             className={cn(
@@ -208,7 +202,7 @@ export function Layout({ children }: LayoutProps) {
           </Link>
         </div>
 
-        {/* History */}
+        {/* HISTORY */}
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
           <div className="text-xs font-semibold text-sidebar-foreground px-3 py-2 uppercase tracking-wider">
             {t.sidebar.history}
@@ -257,7 +251,7 @@ export function Layout({ children }: LayoutProps) {
           )}
         </div>
 
-        {/* User info */}
+        {/* USER INFO */}
         <div className="p-3 border-t border-sidebar-border">
           {user ? (
             <div className="flex items-center gap-3 px-3 py-2">
@@ -328,3 +322,4 @@ export function Layout({ children }: LayoutProps) {
     </div>
   );
 }
+
