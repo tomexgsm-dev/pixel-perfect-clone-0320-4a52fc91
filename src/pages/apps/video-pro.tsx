@@ -1,9 +1,10 @@
-import VideoPro from "@/components/VideoPro";
+import VideoPro from "@/pages/VideoPro";
+import VideoProLayout from "@/components/VideoProLayout";
 
 export default function VideoProPage() {
   return (
-    <div className="min-h-screen bg-[#050509] text-white">
+    <VideoProLayout>
       <VideoPro />
-    </div>
+    </VideoProLayout>
   );
 }
