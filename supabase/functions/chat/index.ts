@@ -218,9 +218,7 @@ function transformClaudeStream(
               controller.close();
               return;
             }
-          } catch {
-            // skip
-          }
+          } catch {}
         }
       }
     },
@@ -267,9 +265,7 @@ function transformGeminiStream(
                 encoder.encode(`data: ${JSON.stringify(openAIChunk)}\n\n`),
               );
             }
-          } catch {
-            // skip
-          }
+          } catch {}
         }
       }
     },
@@ -348,16 +344,10 @@ serve(async (req) => {
           return new Response(fallbackResponse.body, {
             headers: {
               ...corsHeaders,
-              "Content-Type": "text/event-stream",
+              "Content-Type": "text-event-stream",
             },
           });
         }
-        const groqErr = await fallbackResponse.text();
-        console.error(
-          "❌ Groq fallback also failed:",
-          fallbackResponse.status,
-          groqErr,
-        );
       }
 
       if (response.status === 429) {
@@ -371,6 +361,7 @@ serve(async (req) => {
           },
         );
       }
+
       return new Response(
         JSON.stringify({
           error: `AI error from ${selectedModel}: ${response.status}`,
