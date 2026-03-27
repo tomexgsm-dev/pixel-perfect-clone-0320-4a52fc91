@@ -28,7 +28,7 @@ export function useChatStream(conversationId: string | undefined) {
       messages: Message[],
       systemPrompt?: string | null,
       attachment?: AttachmentData | null,
-      model?: string
+      model?: string,
     ): Promise<boolean> => {
       if (!conversationId) return false;
 
@@ -37,7 +37,6 @@ export function useChatStream(conversationId: string | undefined) {
       setStreamError(null);
 
       try {
-        // Save user message to DB
         const insertData: any = {
           conversation_id: conversationId,
           role: "user",
@@ -50,21 +49,22 @@ export function useChatStream(conversationId: string | undefined) {
         }
         await supabase.from("messages").insert(insertData);
 
-        // Build message history for AI
         const aiMessages: any[] = messages.map((m) => {
           if (m.attachment_url && m.attachment_type?.startsWith("image/")) {
             return {
               role: m.role,
               content: [
                 { type: "text", text: m.content },
-                { type: "image_url", image_url: { url: m.attachment_url } },
+                {
+                  type: "image_url",
+                  image_url: { url: m.attachment_url },
+                },
               ],
             };
           }
           return { role: m.role, content: m.content };
         });
 
-        // Add current message
         if (attachment && attachment.type.startsWith("image/")) {
           aiMessages.push({
             role: "user",
@@ -77,21 +77,18 @@ export function useChatStream(conversationId: string | undefined) {
           aiMessages.push({ role: "user", content });
         }
 
-        // 🔥 POPRAWIONY ENDPOINT — image-pro zamiast chat
         const resp = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/image-pro`,
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              Authorization: `Bearer ${
+                import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+              }`,
             },
-            body: JSON.stringify({
-              messages: aiMessages,
-              systemPrompt,
-              model,
-            }),
-          }
+            body: JSON.stringify({ messages: aiMessages, systemPrompt, model }),
+          },
         );
 
         if (!resp.ok) {
@@ -140,7 +137,6 @@ export function useChatStream(conversationId: string | undefined) {
           }
         }
 
-        // Save assistant response to DB
         if (fullResponse) {
           await supabase.from("messages").insert({
             conversation_id: conversationId,
@@ -159,7 +155,7 @@ export function useChatStream(conversationId: string | undefined) {
         setIsStreaming(false);
       }
     },
-    [conversationId]
+    [conversationId],
   );
 
   return {
