@@ -17,6 +17,9 @@ import ImageProPage from "./pages/ImageProPage";
 import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
 
+// ⭐ DODANY IMPORT VIDEO PRO
+import VideoPro from "./pages/VideoPro";
+
 import { Loader2 } from "lucide-react";
 import { Suspense } from "react";
 
@@ -85,10 +88,13 @@ const App = () => (
                     {/* AI APPS */}
                     <Route path="/apps" element={<AppsPage />} />
 
+                    {/* VIDEO PRO — DODANE */}
+                    <Route path="/apps/video-pro" element={<VideoPro />} />
+
                     {/* IMAGE GENERATOR */}
                     <Route path="/images" element={<ImagesPage />} />
 
-                    {/* IMAGE PRO (TWÓJ GENERATOR) */}
+                    {/* IMAGE PRO */}
                     <Route path="/image-pro" element={<ImageProPage />} />
 
                     {/* PRICING */}
