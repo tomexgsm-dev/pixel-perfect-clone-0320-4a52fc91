@@ -1,4 +1,4 @@
-import VideoPro from "@/pages/app/VideoPro";
+import VideoPro from "@/pages/VideoPro";
 import VideoProLayout from "@/components/VideoProLayout";
 
 export default function VideoProPage() {
