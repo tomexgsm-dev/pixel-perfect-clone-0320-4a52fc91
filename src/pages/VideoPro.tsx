@@ -46,7 +46,11 @@ export default function VideoPro() {
     mode: "text" | "image" | "avatar" | "music" | "social"
   ) {
     if (!prompt.trim()) {
-      toast({ title: "Błąd", description: "Wpisz opis wideo przed generowaniem.", variant: "destructive" });
+      toast({
+        title: "Błąd",
+        description: "Wpisz opis wideo przed generowaniem.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -71,15 +75,21 @@ export default function VideoPro() {
         body.avatar = await fileToBase64(avatarFile);
       }
 
-      const { data, error } = await supabase.functions.invoke("video-pro", {
+      // 🔥 NAJWAŻNIEJSZA POPRAWKA
+      const { data, error } = await supabase.functions.invoke("clever-api", {
         body,
       });
 
       if (error) {
         console.error("Edge function error:", error);
-        const msg = "Usługa generowania wideo jest tymczasowo niedostępna. Spróbuj ponownie później.";
+        const msg =
+          "Usługa generowania wideo jest tymczasowo niedostępna. Spróbuj ponownie później.";
         setErrorMessage(msg);
-        toast({ title: "Błąd generowania", description: msg, variant: "destructive" });
+        toast({
+          title: "Błąd generowania",
+          description: msg,
+          variant: "destructive",
+        });
         return;
       }
 
@@ -88,7 +98,11 @@ export default function VideoPro() {
           ? "Zewnętrzne API wideo jest niedostępne. Sprawdź konfigurację lub spróbuj później."
           : data.error;
         setErrorMessage(apiMsg);
-        toast({ title: "Błąd API", description: apiMsg, variant: "destructive" });
+        toast({
+          title: "Błąd API",
+          description: apiMsg,
+          variant: "destructive",
+        });
         return;
       }
 
@@ -104,7 +118,13 @@ export default function VideoPro() {
       toast({ title: "Sukces!", description: "Wideo zostało wygenerowane." });
 
       const file = await fetchAsFile(url, "generated-video.mp4");
-      await saveVideoToGallery(file, { prompt, style, duration, ratio, resolution });
+      await saveVideoToGallery(file, {
+        prompt,
+        style,
+        duration,
+        ratio,
+        resolution,
+      });
 
       const updated = await getVideoGallery();
       setGallery(updated as VideoRecord[]);
@@ -249,7 +269,6 @@ export default function VideoPro() {
             </button>
           </div>
 
-          {/* ⭐ NOWY LOADER */}
           {isLoading && (
             <div className="flex flex-col items-center justify-center py-10 gap-4">
               <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
@@ -266,7 +285,12 @@ export default function VideoPro() {
                 <p className="font-medium text-red-200">Błąd generowania</p>
                 <p className="mt-1">{errorMessage}</p>
               </div>
-              <button onClick={() => setErrorMessage(null)} className="text-red-400 hover:text-red-200 text-xs">✕</button>
+              <button
+                onClick={() => setErrorMessage(null)}
+                className="text-red-400 hover:text-red-200 text-xs"
+              >
+                ✕
+              </button>
             </div>
           )}
         </div>
