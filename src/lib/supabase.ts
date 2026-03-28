@@ -1,14 +1,19 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
+/* ---------------------------------------------
+   SUPABASE CONFIG
+---------------------------------------------- */
+
+// URL projektu Supabase
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-// Używamy PUBLISHABLE_KEY, a jeśli go nie ma — ANON_KEY
+// Klucz publiczny (preferowany publishable, fallback na anon)
 const SUPABASE_KEY =
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
   import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Klient Supabase
+// Tworzymy klienta Supabase
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
     storage: localStorage,
@@ -18,7 +23,10 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_KEY, {
   },
 });
 
-/* ---------- AUTO LOGIN (ANON) ---------- */
+/* ---------------------------------------------
+   AUTO-LOGIN (ANON SESSION)
+---------------------------------------------- */
+
 async function ensureSession() {
   const { data } = await supabase.auth.getSession();
 
