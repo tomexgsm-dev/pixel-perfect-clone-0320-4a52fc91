@@ -37,7 +37,7 @@ export async function saveVideoToGallery(
     .getPublicUrl(filePath).data.publicUrl;
 
   // 2. Zapis metadanych do tabeli
-  const { error: insertError } = await supabase.from("videos").insert({
+  const { error: insertError } = await (supabase as any).from("videos").insert({
     url: publicUrl,
     prompt: metadata.prompt,
     style: metadata.style,
@@ -54,20 +54,20 @@ export async function saveVideoToGallery(
 // Pobieranie galerii
 export async function getVideoGallery(): Promise<VideoRecord[]> {
   const { data, error } = await supabase
-    .from("videos")
+    .from("videos" as any)
     .select("*")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
 
-  return data as VideoRecord[];
+  return (data as any) as VideoRecord[];
 }
 
 // Usuwanie wideo
 export async function deleteVideo(id: string, url: string) {
   // 1. Usuń rekord z tabeli
   const { error: deleteError } = await supabase
-    .from("videos")
+    .from("videos" as any)
     .delete()
     .eq("id", id);
 
