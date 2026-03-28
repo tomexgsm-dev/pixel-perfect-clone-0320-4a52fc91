@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 import {
   saveVideoToGallery,
   getVideoGallery,
@@ -28,6 +29,7 @@ export default function VideoPro() {
   const [isLoading, setIsLoading] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [gallery, setGallery] = useState<VideoRecord[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -43,8 +45,14 @@ export default function VideoPro() {
   async function handleGenerate(
     mode: "text" | "image" | "avatar" | "music" | "social"
   ) {
+    if (!prompt.trim()) {
+      toast({ title: "Błąd", description: "Wpisz opis wideo przed generowaniem.", variant: "destructive" });
+      return;
+    }
+
     try {
       setIsLoading(true);
+      setErrorMessage(null);
 
       const body: Record<string, unknown> = {
         prompt,
@@ -69,26 +77,42 @@ export default function VideoPro() {
 
       if (error) {
         console.error("Edge function error:", error);
-        throw new Error("Video generation failed");
+        const msg = "Usługa generowania wideo jest tymczasowo niedostępna. Spróbuj ponownie później.";
+        setErrorMessage(msg);
+        toast({ title: "Błąd generowania", description: msg, variant: "destructive" });
+        return;
+      }
+
+      if (data?.error) {
+        const apiMsg = data.error.includes("404")
+          ? "Zewnętrzne API wideo jest niedostępne. Sprawdź konfigurację lub spróbuj później."
+          : data.error;
+        setErrorMessage(apiMsg);
+        toast({ title: "Błąd API", description: apiMsg, variant: "destructive" });
+        return;
+      }
+
+      if (!data?.video_url) {
+        const msg = "Nie otrzymano adresu URL wideo. Spróbuj ponownie.";
+        setErrorMessage(msg);
+        toast({ title: "Błąd", description: msg, variant: "destructive" });
+        return;
       }
 
       const url = data.video_url as string;
-
       setVideoUrl(url);
+      toast({ title: "Sukces!", description: "Wideo zostało wygenerowane." });
 
       const file = await fetchAsFile(url, "generated-video.mp4");
-      await saveVideoToGallery(file, {
-        prompt,
-        style,
-        duration,
-        ratio,
-        resolution,
-      });
+      await saveVideoToGallery(file, { prompt, style, duration, ratio, resolution });
 
       const updated = await getVideoGallery();
       setGallery(updated as VideoRecord[]);
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
+      const msg = "Wystąpił nieoczekiwany błąd. Spróbuj ponownie.";
+      setErrorMessage(msg);
+      toast({ title: "Błąd", description: msg, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -232,6 +256,17 @@ export default function VideoPro() {
               <p className="text-sm text-purple-300 animate-pulse">
                 Generowanie wideo… proszę czekać
               </p>
+            </div>
+          )}
+
+          {errorMessage && !isLoading && (
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+              <span className="text-lg">⚠️</span>
+              <div className="flex-1">
+                <p className="font-medium text-red-200">Błąd generowania</p>
+                <p className="mt-1">{errorMessage}</p>
+              </div>
+              <button onClick={() => setErrorMessage(null)} className="text-red-400 hover:text-red-200 text-xs">✕</button>
             </div>
           )}
         </div>
