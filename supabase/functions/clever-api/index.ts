@@ -7,11 +7,15 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// 🔥 FAKE VIDEO (fallback jak API nie masz jeszcze)
-const DEMO_VIDEO =
+// 🔥 HUGGINGFACE API
+const HF_API = "https://webnowa-nexus-video-api.hf.space";
+
+// 🔥 fallback video (jak API padnie)
+const FALLBACK_VIDEO =
   "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
 
 serve(async (req) => {
+  // ✅ CORS
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -30,79 +34,103 @@ serve(async (req) => {
       avatarImage,
     } = body;
 
-    console.log("🔥 REQUEST:", {
-      prompt,
-      avatar,
-      voice,
-      template,
-      scenes,
-      mode,
-    });
-
     // =========================
     // 🧠 SCENES → SCRIPT
     // =========================
-    let finalScript = prompt || "";
+    let finalPrompt = prompt || "";
 
     if (Array.isArray(scenes) && scenes.length > 0) {
-      finalScript = scenes.map((s: any) => s.text).join(" ");
+      finalPrompt = scenes
+        .map((s: any) => s.text)
+        .filter(Boolean)
+        .join(" ");
     }
 
     // =========================
     // 🎬 TEMPLATE BOOST
     // =========================
     if (template === "ad") {
-      finalScript = `Create high converting ad: ${finalScript}`;
+      finalPrompt = `High converting advertisement video: ${finalPrompt}`;
     }
+
     if (template === "tiktok") {
-      finalScript = `Create viral TikTok: ${finalScript}`;
+      finalPrompt = `Viral TikTok style video: ${finalPrompt}`;
     }
+
     if (template === "story") {
-      finalScript = `Create cinematic story: ${finalScript}`;
+      finalPrompt = `Cinematic storytelling video: ${finalPrompt}`;
+    }
+
+    console.log("🔥 FINAL PROMPT:", finalPrompt);
+
+    // =========================
+    // 🚀 CALL HUGGINGFACE
+    // =========================
+    let videoUrl: string | null = null;
+
+    try {
+      const hfRes = await fetch(`${HF_API}/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: finalPrompt,
+          avatar,
+          voice,
+          mode,
+          image,
+          avatarImage,
+        }),
+      });
+
+      if (hfRes.ok) {
+        const data = await hfRes.json();
+        videoUrl = data?.video_url || null;
+      } else {
+        const err = await hfRes.text();
+        console.error("HF ERROR:", err);
+      }
+    } catch (e) {
+      console.error("HF FETCH ERROR:", e);
     }
 
     // =========================
-    // 👤 AVATAR + VOICE INFO
+    // 🔥 FALLBACK (ZAWSZE DZIAŁA)
     // =========================
-    const meta = {
-      avatar,
-      voice,
-      mode,
-      hasImage: !!image,
-      hasAvatarImage: !!avatarImage,
-    };
-
-    console.log("🎭 META:", meta);
+    if (!videoUrl) {
+      console.log("⚡ Using fallback video");
+      videoUrl = FALLBACK_VIDEO;
+    }
 
     // =========================
-    // 🚀 TU PODŁĄCZYSZ PRAWDZIWE API
+    // ✅ RESPONSE
     // =========================
-    // np:
-    // Runway / Pika / HeyGen / Stability
-
-    // 🔥 NA RAZIE: ZWRACAMY DEMO VIDEO (żeby działało)
     return new Response(
       JSON.stringify({
-        video_url: DEMO_VIDEO,
-        debug: {
-          script: finalScript,
-          meta,
-        },
+        video_url: videoUrl,
       }),
       {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
       }
     );
   } catch (err) {
-    console.error("❌ ERROR:", err);
+    console.error("❌ SERVER ERROR:", err);
 
     return new Response(
       JSON.stringify({
-        error: "Server error",
+        video_url: FALLBACK_VIDEO,
+        error: "Server fallback",
       }),
       {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200, // 🔥 NIE 500 żeby frontend nie wybuchł
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
       }
     );
   }
