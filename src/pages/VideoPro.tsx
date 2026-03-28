@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   saveVideoToGallery,
   getVideoGallery,
@@ -15,8 +16,6 @@ type VideoRecord = {
   resolution?: string;
   created_at: string;
 };
-
-const VIDEO_API = import.meta.env.VITE_NEXUS_VIDEO_API as string;
 
 export default function VideoPro() {
   const [prompt, setPrompt] = useState("");
