@@ -43,15 +43,10 @@ export default function VideoPro() {
   async function handleGenerate(
     mode: "text" | "image" | "avatar" | "music" | "social"
   ) {
-    if (!VIDEO_API) {
-      console.error("VITE_NEXUS_VIDEO_API is not set");
-      return;
-    }
-
     try {
       setIsLoading(true);
 
-      const body: any = {
+      const body: Record<string, unknown> = {
         prompt,
         style,
         duration,
@@ -68,18 +63,15 @@ export default function VideoPro() {
         body.avatar = await fileToBase64(avatarFile);
       }
 
-      const res = await fetch(`${VIDEO_API}/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+      const { data, error } = await supabase.functions.invoke("video-pro", {
+        body,
       });
 
-      if (!res.ok) {
-        console.error(await res.text());
+      if (error) {
+        console.error("Edge function error:", error);
         throw new Error("Video generation failed");
       }
 
-      const data = await res.json();
       const url = data.video_url as string;
 
       setVideoUrl(url);
