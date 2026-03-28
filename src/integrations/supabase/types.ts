@@ -68,6 +68,30 @@ export type Database = {
         }
         Relationships: []
       }
+      images: {
+        Row: {
+          created_at: string
+          id: string
+          prompt: string
+          url: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          prompt: string
+          url: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          prompt?: string
+          url?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           attachment_name: string | null
@@ -142,6 +166,42 @@ export type Database = {
           points?: number
           updated_at?: string
           username?: string | null
+        }
+        Relationships: []
+      }
+      videos: {
+        Row: {
+          created_at: string
+          duration: number | null
+          id: string
+          prompt: string
+          ratio: string | null
+          resolution: string | null
+          style: string | null
+          url: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          duration?: number | null
+          id?: string
+          prompt: string
+          ratio?: string | null
+          resolution?: string | null
+          style?: string | null
+          url: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          duration?: number | null
+          id?: string
+          prompt?: string
+          ratio?: string | null
+          resolution?: string | null
+          style?: string | null
+          url?: string
+          user_id?: string | null
         }
         Relationships: []
       }
