@@ -65,7 +65,6 @@ export default function VideoPro() {
         ratio,
         resolution,
         mode,
-        model: "gemini", // ✅ DODANE
       };
 
       if (mode === "image" && imageFile) {
@@ -76,15 +75,13 @@ export default function VideoPro() {
         body.avatar = await fileToBase64(avatarFile);
       }
 
-      // ✅ ZMIANA endpointu
-      const { data, error } = await supabase.functions.invoke("chat", {
+      const { data, error } = await supabase.functions.invoke("clever-api", {
         body,
       });
 
       if (error) {
-        console.error("Edge function error:", error);
         const msg =
-          "Usługa generowania wideo jest tymczasowo niedostępna. Spróbuj ponownie później.";
+          "Usługa generowania wideo jest tymczasowo niedostępna.";
         setErrorMessage(msg);
         toast({
           title: "Błąd generowania",
@@ -94,29 +91,14 @@ export default function VideoPro() {
         return;
       }
 
-      if (data?.error) {
-        const apiMsg = data.error.includes("404")
-          ? "Zewnętrzne API wideo jest niedostępne. Sprawdź konfigurację lub spróbuj później."
-          : data.error;
-        setErrorMessage(apiMsg);
-        toast({
-          title: "Błąd API",
-          description: apiMsg,
-          variant: "destructive",
-        });
-        return;
-      }
-
       if (!data?.video_url) {
-        const msg = "Nie otrzymano adresu URL wideo. Spróbuj ponownie.";
+        const msg = "Nie otrzymano URL wideo.";
         setErrorMessage(msg);
-        toast({ title: "Błąd", description: msg, variant: "destructive" });
         return;
       }
 
       const url = data.video_url as string;
       setVideoUrl(url);
-      toast({ title: "Sukces!", description: "Wideo zostało wygenerowane." });
 
       const file = await fetchAsFile(url, "generated-video.mp4");
       await saveVideoToGallery(file, {
@@ -129,11 +111,8 @@ export default function VideoPro() {
 
       const updated = await getVideoGallery();
       setGallery(updated as VideoRecord[]);
-    } catch (e: unknown) {
-      console.error(e);
-      const msg = "Wystąpił nieoczekiwany błąd. Spróbuj ponownie.";
-      setErrorMessage(msg);
-      toast({ title: "Błąd", description: msg, variant: "destructive" });
+    } catch (e) {
+      setErrorMessage("Błąd serwera");
     } finally {
       setIsLoading(false);
     }
@@ -147,13 +126,65 @@ export default function VideoPro() {
   return (
     <div className="flex flex-col gap-6 p-6 bg-[#050509] text-white min-h-screen">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        {/* LEFT */}
         <div className="lg:col-span-2 flex flex-col gap-4">
           <textarea
-            className="w-full rounded-md bg-[#0b0b12] border border-[#262637] p-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full bg-[#0b0b12] border p-3"
             rows={4}
-            placeholder="Describe your video idea..."
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
           />
 
-          {/* RESZTA BEZ ZMIAN */}
+          <button
+            onClick={() => handleGenerate("text")}
+            disabled={isLoading}
+          >
+            Generate
+          </button>
+
+          {errorMessage && <div>{errorMessage}</div>}
+        </div>
+
+        {/* RIGHT */}
+        <div className="bg-[#0b0b12] border p-4">
+          {videoUrl ? (
+            <video src={videoUrl} controls />
+          ) : (
+            <div>Preview</div>
+          )}
+        </div>
+
+      </div>
+
+      {/* HISTORY */}
+      <div>
+        {gallery.map((video) => (
+          <div key={video.id}>
+            <video src={video.url} controls />
+            <button onClick={() => handleDelete(video.id, video.url)}>
+              Delete
+            </button>
+          </div>
+        ))}
+      </div>
+
+    </div>
+  );
+}
+
+// helpers
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function fetchAsFile(url: string, filename: string): Promise<File> {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  return new File([blob], filename, { type: blob.type });
+}
