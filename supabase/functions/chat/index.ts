@@ -123,11 +123,32 @@ serve(async (req) => {
   }
 
   try {
-    const body = await req.json();
-    const messages = body.messages || [];
+    let body;
+
+    // ✅ zabezpieczenie przed crash
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    console.log("BODY:", body);
+
+    // ✅ FIX: obsługa prompt zamiast messages
+    const messages = Array.isArray(body.messages)
+      ? body.messages
+      : [{ role: "user", content: body.prompt || "Hello" }];
+
     const system =
       body.systemPrompt ||
       "You are a helpful assistant. Answer clearly.";
+
     const model = body.model || "gemini";
 
     const config = getProviderConfig(model);
@@ -138,11 +159,11 @@ serve(async (req) => {
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        }
       );
     }
 
-    let response = await callModel(config, messages, system);
+    const response = await callModel(config, messages, system);
 
     if (!response.ok) {
       const text = await response.text();
@@ -153,7 +174,7 @@ serve(async (req) => {
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        }
       );
     }
 
@@ -171,7 +192,7 @@ serve(async (req) => {
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
+      }
     );
   }
 });
