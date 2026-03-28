@@ -1,208 +1,66 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
-import {
-  saveVideoToGallery,
-  getVideoGallery,
-  deleteVideo,
-} from "@/lib/api/video";
+<div className="flex h-screen bg-[#050509] text-white">
 
-type VideoRecord = {
-  id: string;
-  url: string;
-  prompt: string;
-  style?: string;
-  duration?: number;
-  ratio?: string;
-  resolution?: string;
-  created_at: string;
-};
+  {/* SIDEBAR */}
+  <div className="w-64 bg-[#0b0b12] border-r border-[#262637] p-4 flex flex-col gap-4">
+    <div className="text-lg font-semibold">Nexus AI</div>
 
-export default function VideoPro() {
-  const [prompt, setPrompt] = useState("");
-  const [style, setStyle] = useState("cinematic");
-  const [duration, setDuration] = useState(10);
-  const [ratio, setRatio] = useState("16:9");
-  const [resolution, setResolution] = useState("1080p");
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [gallery, setGallery] = useState<VideoRecord[]>([]);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    <div className="flex flex-col gap-2 text-sm">
+      <button className="text-left p-2 rounded hover:bg-[#151521]">🎬 Video</button>
+      <button className="text-left p-2 rounded hover:bg-[#151521]">🖼 Image</button>
+      <button className="text-left p-2 rounded hover:bg-[#151521]">🧑 Avatar</button>
+      <button className="text-left p-2 rounded hover:bg-[#151521]">📁 History</button>
+    </div>
+  </div>
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const data = await getVideoGallery();
-        setGallery(data as VideoRecord[]);
-      } catch (e) {
-        console.error(e);
-      }
-    })();
-  }, []);
+  {/* MAIN */}
+  <div className="flex-1 flex flex-col">
 
-  async function handleGenerate(
-    mode: "text" | "image" | "avatar" | "music" | "social"
-  ) {
-    if (!prompt.trim()) {
-      toast({
-        title: "Błąd",
-        description: "Wpisz opis wideo przed generowaniem.",
-        variant: "destructive",
-      });
-      return;
-    }
+    {/* TOPBAR */}
+    <div className="h-14 border-b border-[#262637] flex items-center px-6">
+      <div className="text-sm text-gray-400">Video Generator</div>
+    </div>
 
-    try {
-      setIsLoading(true);
-      setErrorMessage(null);
+    {/* CONTENT */}
+    <div className="flex-1 flex">
 
-      const body: Record<string, unknown> = {
-        prompt,
-        style,
-        duration,
-        ratio,
-        resolution,
-        mode,
-      };
+      {/* LEFT PANEL */}
+      <div className="w-[420px] border-r border-[#262637] p-6 flex flex-col gap-4">
 
-      if (mode === "image" && imageFile) {
-        body.image = await fileToBase64(imageFile);
-      }
+        <textarea
+          className="w-full h-32 bg-[#0b0b12] border border-[#262637] rounded-lg p-3"
+          placeholder="Describe your video..."
+        />
 
-      if (mode === "avatar" && avatarFile) {
-        body.avatar = await fileToBase64(avatarFile);
-      }
+        <div className="grid grid-cols-2 gap-3">
+          <select className="bg-[#0b0b12] border p-2 rounded">
+            <option>Cinematic</option>
+          </select>
 
-      const { data, error } = await supabase.functions.invoke("clever-api", {
-        body,
-      });
+          <select className="bg-[#0b0b12] border p-2 rounded">
+            <option>10s</option>
+          </select>
+        </div>
 
-      if (error) {
-        console.error(error);
-        setErrorMessage("API nie odpowiada");
-        return;
-      }
+        <div className="flex gap-2">
+          <input type="file" />
+          <input type="file" />
+        </div>
 
-      if (!data?.video_url) {
-        setErrorMessage("Brak video_url");
-        return;
-      }
+        <button className="bg-purple-600 p-3 rounded-lg">
+          Generate Video
+        </button>
 
-      const url = data.video_url as string;
-      setVideoUrl(url);
-
-      const file = await fetchAsFile(url, "video.mp4");
-
-      await saveVideoToGallery(file, {
-        prompt,
-        style,
-        duration,
-        ratio,
-        resolution,
-      });
-
-      const updated = await getVideoGallery();
-      setGallery(updated as VideoRecord[]);
-    } catch (e) {
-      console.error(e);
-      setErrorMessage("Błąd serwera");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function handleDelete(id: string, url: string) {
-    await deleteVideo(id, url);
-    setGallery((prev) => prev.filter((v) => v.id !== id));
-  }
-
-  return (
-    <div className="p-6 text-white min-h-screen bg-black">
-
-      <textarea
-        className="w-full p-3 bg-[#111] border mb-3"
-        placeholder="Describe your video idea..."
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-      />
-
-      {/* OPTIONS */}
-      <div className="flex gap-2 mb-3">
-        <select value={style} onChange={(e) => setStyle(e.target.value)}>
-          <option value="cinematic">cinematic</option>
-          <option value="anime">anime</option>
-          <option value="realistic">realistic</option>
-        </select>
-
-        <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
-          <option value={5}>5</option>
-          <option value={10}>10</option>
-          <option value={15}>15</option>
-        </select>
-
-        <select value={ratio} onChange={(e) => setRatio(e.target.value)}>
-          <option value="16:9">16:9</option>
-          <option value="9:16">9:16</option>
-        </select>
-
-        <select value={resolution} onChange={(e) => setResolution(e.target.value)}>
-          <option value="720p">720p</option>
-          <option value="1080p">1080p</option>
-        </select>
       </div>
 
-      {/* FILES */}
-      <div className="flex gap-2 mb-3">
-        <input type="file" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
-        <input type="file" onChange={(e) => setAvatarFile(e.target.files?.[0] || null)} />
-      </div>
+      {/* RIGHT PANEL */}
+      <div className="flex-1 flex items-center justify-center p-6">
 
-      {/* BUTTONS */}
-      <div className="flex gap-2 mb-3">
-        <button onClick={() => handleGenerate("text")}>Generate</button>
-        <button onClick={() => handleGenerate("image")}>Image</button>
-        <button onClick={() => handleGenerate("avatar")}>Avatar</button>
-        <button onClick={() => handleGenerate("music")}>Music</button>
-        <button onClick={() => handleGenerate("social")}>Social</button>
-      </div>
+        <div className="w-full max-w-2xl aspect-video bg-[#0b0b12] border border-[#262637] rounded-xl flex items-center justify-center text-gray-500">
+          Video Preview
+        </div>
 
-      {isLoading && <div>Loading...</div>}
-      {errorMessage && <div className="text-red-500">{errorMessage}</div>}
-
-      {/* PREVIEW */}
-      <div className="mb-4">
-        {videoUrl ? <video src={videoUrl} controls /> : <div>Preview</div>}
-      </div>
-
-      {/* HISTORY */}
-      <div>
-        {gallery.map((video) => (
-          <div key={video.id}>
-            <video src={video.url} controls />
-            <button onClick={() => handleDelete(video.id, video.url)}>
-              Delete
-            </button>
-          </div>
-        ))}
       </div>
 
     </div>
-  );
-}
-
-async function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-async function fetchAsFile(url: string, filename: string): Promise<File> {
-  const res = await fetch(url);
-  const blob = await res.blob();
-  return new File([blob], filename, { type: blob.type });
-}
+  </div>
+</div>
