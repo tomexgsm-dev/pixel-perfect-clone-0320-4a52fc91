@@ -12,14 +12,32 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, style, duration, ratio, resolution } = await req.json();
+    const { prompt, style, duration, ratio, resolution, mode, image, avatar } = await req.json();
 
-    const videoApiUrl = Deno.env.get("NEXUS_VIDEO_API") || "https://webnova-nexus-video-api.hf.space";
+    if (!prompt || typeof prompt !== "string") {
+      return new Response(
+        JSON.stringify({ error: "prompt is required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    const response = await fetch(`${videoApiUrl}/api/generate`, {
+    const videoApiUrl = Deno.env.get("NEXUS_VIDEO_API");
+    if (!videoApiUrl) {
+      console.error("NEXUS_VIDEO_API secret is not configured");
+      return new Response(
+        JSON.stringify({ error: "Video API not configured" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const body: Record<string, unknown> = { prompt, style, duration, ratio, resolution, mode };
+    if (image) body.image = image;
+    if (avatar) body.avatar = avatar;
+
+    const response = await fetch(`${videoApiUrl}/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, style, duration, ratio, resolution }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
