@@ -23,7 +23,7 @@ export async function saveImageToGallery(file: File, prompt: string) {
   const publicUrl = publicUrlData.publicUrl;
 
   // Save DB record
-  const { error: dbError } = await supabase.from("images").insert({
+  const { error: dbError } = await (supabase as any).from("images").insert({
     url: publicUrl,
     prompt,
   });
@@ -35,7 +35,7 @@ export async function saveImageToGallery(file: File, prompt: string) {
 
 export async function getGallery() {
   const { data, error } = await supabase
-    .from("images")
+    .from("images" as any)
     .select("*")
     .order("created_at", { ascending: false });
 
@@ -53,5 +53,5 @@ export async function deleteImage(id: string, url: string) {
       .remove([fileName]);
   }
 
-  await supabase.from("images").delete().eq("id", id);
+  await (supabase as any).from("images").delete().eq("id", id);
 }
