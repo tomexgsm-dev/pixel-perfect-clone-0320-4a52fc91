@@ -258,6 +258,17 @@ export default function VideoPro() {
               </p>
             </div>
           )}
+
+          {errorMessage && !isLoading && (
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+              <span className="text-lg">⚠️</span>
+              <div className="flex-1">
+                <p className="font-medium text-red-200">Błąd generowania</p>
+                <p className="mt-1">{errorMessage}</p>
+              </div>
+              <button onClick={() => setErrorMessage(null)} className="text-red-400 hover:text-red-200 text-xs">✕</button>
+            </div>
+          )}
         </div>
 
         {/* PREVIEW */}
