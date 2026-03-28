@@ -75,32 +75,13 @@ export default function VideoPro() {
         body.avatar = await fileToBase64(avatarFile);
       }
 
-      // timeout fix
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60000);
-
       const { data, error } = await supabase.functions.invoke("clever-api", {
         body,
-        // @ts-ignore
-        signal: controller.signal,
       });
-
-      clearTimeout(timeout);
 
       if (error) {
         console.error(error);
-        const msg = "Usługa generowania wideo jest niedostępna.";
-        setErrorMessage(msg);
-        toast({
-          title: "Błąd",
-          description: msg,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (data?.error) {
-        setErrorMessage(data.error);
+        setErrorMessage("API nie odpowiada");
         return;
       }
 
@@ -113,6 +94,7 @@ export default function VideoPro() {
       setVideoUrl(url);
 
       const file = await fetchAsFile(url, "video.mp4");
+
       await saveVideoToGallery(file, {
         prompt,
         style,
@@ -123,13 +105,9 @@ export default function VideoPro() {
 
       const updated = await getVideoGallery();
       setGallery(updated as VideoRecord[]);
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      setErrorMessage(
-        e.name === "AbortError"
-          ? "Timeout API"
-          : "Błąd serwera"
-      );
+      setErrorMessage("Błąd serwera");
     } finally {
       setIsLoading(false);
     }
@@ -141,41 +119,61 @@ export default function VideoPro() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6 bg-[#050509] text-white min-h-screen">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* LEFT */}
-        <div className="lg:col-span-2 flex flex-col gap-4">
-          <textarea
-            className="w-full rounded-md bg-[#0b0b12] border border-[#262637] p-3 text-sm"
-            rows={4}
-            placeholder="Describe your video idea..."
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-          />
+    <div className="p-6 text-white min-h-screen bg-black">
 
-          <div className="flex gap-3">
-            <button
-              onClick={() => handleGenerate("text")}
-              disabled={isLoading}
-              className="px-4 py-2 bg-purple-600 rounded"
-            >
-              Generate
-            </button>
-          </div>
+      <textarea
+        className="w-full p-3 bg-[#111] border mb-3"
+        placeholder="Describe your video idea..."
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
+      />
 
-          {errorMessage && <div className="text-red-400">{errorMessage}</div>}
-        </div>
+      {/* OPTIONS */}
+      <div className="flex gap-2 mb-3">
+        <select value={style} onChange={(e) => setStyle(e.target.value)}>
+          <option value="cinematic">cinematic</option>
+          <option value="anime">anime</option>
+          <option value="realistic">realistic</option>
+        </select>
 
-        {/* RIGHT */}
-        <div className="bg-[#0b0b12] border p-4">
-          {videoUrl ? (
-            <video src={videoUrl} controls className="w-full" />
-          ) : (
-            <div>Preview</div>
-          )}
-        </div>
+        <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
+          <option value={5}>5</option>
+          <option value={10}>10</option>
+          <option value={15}>15</option>
+        </select>
 
+        <select value={ratio} onChange={(e) => setRatio(e.target.value)}>
+          <option value="16:9">16:9</option>
+          <option value="9:16">9:16</option>
+        </select>
+
+        <select value={resolution} onChange={(e) => setResolution(e.target.value)}>
+          <option value="720p">720p</option>
+          <option value="1080p">1080p</option>
+        </select>
+      </div>
+
+      {/* FILES */}
+      <div className="flex gap-2 mb-3">
+        <input type="file" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
+        <input type="file" onChange={(e) => setAvatarFile(e.target.files?.[0] || null)} />
+      </div>
+
+      {/* BUTTONS */}
+      <div className="flex gap-2 mb-3">
+        <button onClick={() => handleGenerate("text")}>Generate</button>
+        <button onClick={() => handleGenerate("image")}>Image</button>
+        <button onClick={() => handleGenerate("avatar")}>Avatar</button>
+        <button onClick={() => handleGenerate("music")}>Music</button>
+        <button onClick={() => handleGenerate("social")}>Social</button>
+      </div>
+
+      {isLoading && <div>Loading...</div>}
+      {errorMessage && <div className="text-red-500">{errorMessage}</div>}
+
+      {/* PREVIEW */}
+      <div className="mb-4">
+        {videoUrl ? <video src={videoUrl} controls /> : <div>Preview</div>}
       </div>
 
       {/* HISTORY */}
@@ -189,6 +187,7 @@ export default function VideoPro() {
           </div>
         ))}
       </div>
+
     </div>
   );
 }
