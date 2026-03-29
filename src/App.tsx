@@ -103,6 +103,9 @@ const App = () => (
                     {/* TEMPLATES */}
                     <Route path="/templates" element={<TemplatesPage />} />
 
+                    {/* LEADFINDER */}
+                    <Route path="/leads" element={<LeadFinderPage />} />
+
                     {/* 404 */}
                     <Route path="*" element={<NotFound />} />
                   </Routes>
