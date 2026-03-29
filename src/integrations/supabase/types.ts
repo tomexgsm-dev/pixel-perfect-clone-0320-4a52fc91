@@ -92,6 +92,60 @@ export type Database = {
         }
         Relationships: []
       }
+      leads: {
+        Row: {
+          city: string | null
+          company_name: string
+          created_at: string
+          email: string | null
+          google_rating: number | null
+          google_reviews: number | null
+          id: string
+          opportunity: boolean
+          phone: string | null
+          site_score: number | null
+          site_status: string | null
+          site_summary: string | null
+          updated_at: string
+          user_id: string | null
+          website: string | null
+        }
+        Insert: {
+          city?: string | null
+          company_name: string
+          created_at?: string
+          email?: string | null
+          google_rating?: number | null
+          google_reviews?: number | null
+          id?: string
+          opportunity?: boolean
+          phone?: string | null
+          site_score?: number | null
+          site_status?: string | null
+          site_summary?: string | null
+          updated_at?: string
+          user_id?: string | null
+          website?: string | null
+        }
+        Update: {
+          city?: string | null
+          company_name?: string
+          created_at?: string
+          email?: string | null
+          google_rating?: number | null
+          google_reviews?: number | null
+          id?: string
+          opportunity?: boolean
+          phone?: string | null
+          site_score?: number | null
+          site_status?: string | null
+          site_summary?: string | null
+          updated_at?: string
+          user_id?: string | null
+          website?: string | null
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           attachment_name: string | null
