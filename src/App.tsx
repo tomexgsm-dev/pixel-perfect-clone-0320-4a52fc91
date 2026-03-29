@@ -17,8 +17,8 @@ import ImageProPage from "./pages/ImageProPage";
 import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
 
-// ⭐ DODANY IMPORT VIDEO PRO
 import VideoPro from "./pages/VideoPro";
+import LeadFinderPage from "./pages/LeadFinderPage";
 
 import { Loader2 } from "lucide-react";
 import { Suspense } from "react";

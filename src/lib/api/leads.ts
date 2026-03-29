@@ -29,9 +29,10 @@ export async function fetchLeads() {
 
 export async function insertLead(lead: Partial<Lead>) {
   const opportunity = !lead.website || (lead.site_score != null && lead.site_score < 50);
+  const row = { ...lead, opportunity } as any;
   const { data, error } = await supabase
     .from("leads")
-    .insert({ ...lead, opportunity })
+    .insert(row)
     .select()
     .single();
   if (error) throw error;
