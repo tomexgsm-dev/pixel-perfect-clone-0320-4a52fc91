@@ -3,20 +3,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// ================= CONFIG =================
-
-function getGroqFallback() {
-  return {
-    url: "https://api.groq.com/openai/v1/chat/completions",
-    key: Deno.env.get("GROQ_KEY"),
-    model: "llama-3.3-70b-versatile",
-    type: "openai" as const,
-  };
-}
+// ================= PROVIDER CONFIG =================
 
 function getProviderConfig(model: string) {
   switch (model) {
@@ -50,11 +40,12 @@ function getProviderConfig(model: string) {
       };
     case "gemini":
     default:
+      // Use Lovable AI Gateway instead of direct Gemini
       return {
-        url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=${Deno.env.get("GEMINI_KEY")}`,
-        key: Deno.env.get("GEMINI_KEY"),
-        model: "gemini-2.0-flash",
-        type: "gemini" as const,
+        url: "https://ai.gateway.lovable.dev/v1/chat/completions",
+        key: Deno.env.get("LOVABLE_API_KEY"),
+        model: "google/gemini-3-flash-preview",
+        type: "openai" as const,
       };
   }
 }
@@ -79,20 +70,6 @@ async function callClaude(config: any, messages: any[], system: string) {
   });
 }
 
-async function callGemini(config: any, messages: any[], system: string) {
-  return fetch(config.url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: system }] },
-      contents: messages.map((m: any) => ({
-        role: m.role === "assistant" ? "model" : "user",
-        parts: [{ text: m.content }],
-      })),
-    }),
-  });
-}
-
 async function callOpenAICompatible(config: any, messages: any[], system: string) {
   return fetch(config.url, {
     method: "POST",
@@ -110,56 +87,40 @@ async function callOpenAICompatible(config: any, messages: any[], system: string
 
 async function callModel(config: any, messages: any[], system: string) {
   if (config.type === "claude") return callClaude(config, messages, system);
-  if (config.type === "gemini") return callGemini(config, messages, system);
   return callOpenAICompatible(config, messages, system);
 }
 
 // ================= MAIN =================
 
 serve(async (req) => {
-  // ✅ CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
     let body;
-
-    // ✅ zabezpieczenie przed crash
     try {
       body = await req.json();
     } catch {
       return new Response(
         JSON.stringify({ error: "Invalid JSON" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log("BODY:", body);
-
-    // ✅ FIX: obsługa prompt zamiast messages
     const messages = Array.isArray(body.messages)
       ? body.messages
       : [{ role: "user", content: body.prompt || "Hello" }];
 
-    const system =
-      body.systemPrompt ||
-      "You are a helpful assistant. Answer clearly.";
-
+    const system = body.systemPrompt || "You are a helpful assistant. Answer clearly.";
     const model = body.model || "gemini";
 
     const config = getProviderConfig(model);
 
     if (!config.key) {
       return new Response(
-        JSON.stringify({ error: "Missing API key" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        JSON.stringify({ error: "Missing API key for selected model" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -167,32 +128,35 @@ serve(async (req) => {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error("AI error:", text);
+      console.error("AI error:", response.status, text);
+
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "Rate limit exceeded, please try again later." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "Payment required, please add funds." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
       return new Response(
         JSON.stringify({ error: "AI request failed" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     return new Response(response.body, {
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "text/event-stream",
-      },
+      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (err) {
     console.error("ERROR:", err);
-
     return new Response(
       JSON.stringify({ error: "Server error" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

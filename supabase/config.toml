@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.video-pro]
 verify_jwt = false
+
+[functions.analyze-website]
+verify_jwt = false
