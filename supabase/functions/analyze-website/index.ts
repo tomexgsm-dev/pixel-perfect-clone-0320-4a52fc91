@@ -145,22 +145,30 @@ Return ONLY valid JSON, no markdown.`,
     });
 
     if (!aiResponse.ok) {
-      if (aiResponse.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded, try again later" }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (aiResponse.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted" }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      console.error("AI error:", aiResponse.status, await aiResponse.text());
-      // Fallback heuristic
+      const errText = await aiResponse.text();
+      console.error("AI error:", aiResponse.status, errText);
+      // Fallback to heuristic analysis for any AI error
+      const hasForm = /<form/i.test(htmlContent);
+      const hasCTA = /btn|button|cta|kontakt|contact|zamów|order/i.test(htmlContent);
+      const hasResponsive = /viewport|responsive|media.*query|flex|grid/i.test(htmlContent);
+      const isModern = /react|vue|angular|tailwind|bootstrap/i.test(htmlContent);
+
+      let fallbackScore = 30;
+      if (hasForm) fallbackScore += 15;
+      if (hasCTA) fallbackScore += 15;
+      if (hasResponsive) fallbackScore += 20;
+      if (isModern) fallbackScore += 20;
+      fallbackScore = Math.min(fallbackScore, 100);
+
+      const fallbackStatus = fallbackScore >= 70 ? "good" : fallbackScore >= 40 ? "average" : "bad";
+
       return new Response(
-        JSON.stringify({ score: 30, status: "bad", summary: "Analiza AI niedostępna - ocena bazowa.", email: extractedEmail }),
+        JSON.stringify({
+          score: fallbackScore,
+          status: fallbackStatus,
+          summary: `Analiza heurystyczna: ${hasResponsive ? "responsywna" : "brak responsywności"}, ${hasCTA ? "ma CTA" : "brak CTA"}, ${hasForm ? "ma formularz" : "brak formularza"}.`,
+          email: extractedEmail,
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
