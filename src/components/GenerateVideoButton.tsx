@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { generateVideo, VideoPayload } from "@/lib/videoService";
+import { saveVideoToGallery } from "@/lib/api/video";
 import { Button } from "@/components/ui/button";
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
   ratio?: string;
   resolution?: string;
   mode?: string;
+  onSuccess?: (videoUrl: string) => void;
 }
 
 export default function GenerateVideoButton({
@@ -24,6 +26,7 @@ export default function GenerateVideoButton({
   ratio,
   resolution,
   mode,
+  onSuccess,
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,21 +44,25 @@ export default function GenerateVideoButton({
 
     try {
       const payload: VideoPayload = {
-        prompt,
-        avatar,
-        voice,
-        scenes,
-        style,
-        duration,
-        ratio,
-        resolution,
-        mode,
+        prompt, avatar, voice, scenes, style, duration, ratio, resolution, mode,
       };
 
       const result = await generateVideo(payload);
 
       if (result.video_url) {
         setVideoUrl(result.video_url);
+
+        // Save to gallery
+        try {
+          const res = await fetch(result.video_url);
+          const blob = await res.blob();
+          const file = new File([blob], "video.mp4", { type: blob.type });
+          await saveVideoToGallery(file, { prompt, style, duration, ratio, resolution });
+        } catch (e) {
+          console.error("Failed to save to gallery:", e);
+        }
+
+        onSuccess?.(result.video_url);
       } else if (result.job_id) {
         setError(`Wideo w kolejce. Job ID: ${result.job_id}`);
       }
@@ -83,11 +90,7 @@ export default function GenerateVideoButton({
       {videoUrl && (
         <div className="flex flex-col gap-2">
           <video src={videoUrl} controls className="w-full rounded-lg" />
-          <a
-            href={videoUrl}
-            download
-            className="text-sm text-primary underline"
-          >
+          <a href={videoUrl} download className="text-sm text-primary underline">
             Pobierz wideo
           </a>
         </div>
