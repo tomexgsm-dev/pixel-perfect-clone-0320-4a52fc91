@@ -73,7 +73,7 @@ async function callGenerateVideo(payload: {
   const SUPABASE_URL      = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/video-pro`, {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/clever-api`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
