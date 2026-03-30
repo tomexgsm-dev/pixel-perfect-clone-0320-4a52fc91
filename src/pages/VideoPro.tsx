@@ -25,13 +25,8 @@ export default function VideoPro() {
   const [ratio, setRatio] = useState("16:9");
   const [resolution, setResolution] = useState("1080p");
 
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-
-  const [isLoading, setIsLoading] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [gallery, setGallery] = useState<VideoRecord[]>([]);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // 🔥 NOWE FEATURE
   const [avatar, setAvatar] = useState("avatar1");
