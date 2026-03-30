@@ -45,7 +45,15 @@ export default function VideoPro() {
     })();
   }, []);
 
-  // Gallery refresh after generation is handled via GenerateVideoButton's onSuccess
+  const handleVideoSuccess = async (url: string) => {
+    setVideoUrl(url);
+    try {
+      const updated = await getVideoGallery();
+      setGallery(updated as VideoRecord[]);
+    } catch (e) {
+      console.error("Failed to refresh gallery:", e);
+    }
+  };
 
   async function handleDelete(id: string, url: string) {
     await deleteVideo(id, url);
