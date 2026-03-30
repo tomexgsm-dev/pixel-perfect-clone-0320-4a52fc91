@@ -5,9 +5,11 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 serve(async (req) => {
+  // Preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -22,10 +24,8 @@ serve(async (req) => {
     const body = await req.json();
 
     // 🔥 TU WSTAWIASZ SWÓJ KOD GENEROWANIA WIDEO
-    // np. wywołanie API, modelu, itp.
     // const result = await generateVideo(body);
 
-    // PRZYKŁADOWA ODPOWIEDŹ:
     return new Response(
       JSON.stringify({
         video_url: "https://example.com/video.mp4",
