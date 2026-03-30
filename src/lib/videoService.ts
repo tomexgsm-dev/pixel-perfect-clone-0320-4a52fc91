@@ -8,18 +8,19 @@ export interface VideoPayload {
   ratio?: string;
   resolution?: string;
   mode?: string;
+  image?: string;
 }
 
 export async function generateVideo(payload: VideoPayload) {
-  const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-video`;
+  const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/clever-api`;
 
   const res = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {
