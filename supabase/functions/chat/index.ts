@@ -6,6 +6,21 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// ================= LOSOWANIE MODELU =================
+
+// Możesz ustawić enabled: false dla modeli które nie działają
+const RANDOM_MODELS = [
+  { name: "mistral",  enabled: true },
+  { name: "claude",   enabled: true },
+  { name: "llama",    enabled: true },
+  { name: "deepseek", enabled: true },
+];
+
+function pickRandomModel(): string {
+  const active = RANDOM_MODELS.filter((m) => m.enabled);
+  return active[Math.floor(Math.random() * active.length)].name;
+}
+
 // ================= PROVIDER CONFIG =================
 
 function getProviderConfig(model: string) {
@@ -40,7 +55,6 @@ function getProviderConfig(model: string) {
       };
     case "gemini":
     default:
-      // Use Lovable AI Gateway instead of direct Gemini
       return {
         url: "https://ai.gateway.lovable.dev/v1/chat/completions",
         key: Deno.env.get("LOVABLE_API_KEY"),
@@ -113,7 +127,12 @@ serve(async (req) => {
       : [{ role: "user", content: body.prompt || "Hello" }];
 
     const system = body.systemPrompt || "You are a helpful assistant. Answer clearly.";
-    const model = body.model || "gemini";
+
+    // Jeśli model = "random" lub nie podano → losuj; inaczej użyj podanego
+    const requestedModel = body.model || "random";
+    const model = requestedModel === "random" ? pickRandomModel() : requestedModel;
+
+    console.log(`[AI Router] Model wybrany: ${model} (żądany: ${requestedModel})`);
 
     const config = getProviderConfig(model);
 
@@ -149,8 +168,13 @@ serve(async (req) => {
       );
     }
 
+    // Dodajemy nagłówek z nazwą użytego modelu (opcjonalnie frontend może go odczytać)
     return new Response(response.body, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "text/event-stream",
+        "X-AI-Model-Used": model,
+      },
     });
   } catch (err) {
     console.error("ERROR:", err);
