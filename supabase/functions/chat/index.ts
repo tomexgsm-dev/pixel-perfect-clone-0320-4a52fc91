@@ -8,12 +8,11 @@ const corsHeaders = {
 
 // ================= LOSOWANIE MODELU =================
 
-// Możesz ustawić enabled: false dla modeli które nie działają
 const RANDOM_MODELS = [
   { name: "mistral",  enabled: true },
   { name: "claude",   enabled: true },
   { name: "llama",    enabled: true },
-  { name: "deepseek", enabled: true },
+  { name: "deepseek", enabled: false }, // wyłączony - brak DEEPSEEK_KEY w Secrets
 ];
 
 function pickRandomModel(): string {
@@ -128,7 +127,6 @@ serve(async (req) => {
 
     const system = body.systemPrompt || "You are a helpful assistant. Answer clearly.";
 
-    // Jeśli model = "random" lub nie podano → losuj; inaczej użyj podanego
     const requestedModel = body.model || "random";
     const model = requestedModel === "random" ? pickRandomModel() : requestedModel;
 
@@ -168,7 +166,6 @@ serve(async (req) => {
       );
     }
 
-    // Dodajemy nagłówek z nazwą użytego modelu (opcjonalnie frontend może go odczytać)
     return new Response(response.body, {
       headers: {
         ...corsHeaders,
