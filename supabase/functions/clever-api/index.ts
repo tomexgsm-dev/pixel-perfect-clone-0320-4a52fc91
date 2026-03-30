@@ -1,111 +1,50 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
 
 serve(async (req) => {
-  // 🔥 CORS (NAPRAWIA BŁĘDY W PRZEGLĄDARCE)
   if (req.method === "OPTIONS") {
-    return new Response("ok", {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-      },
-    });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const body = await req.json();
-
-    const {
-      prompt,
-      style,
-      duration,
-      ratio,
-      resolution,
-      mode,
-      image,
-      avatar,
-      voice,
-      scenes,
-    } = body;
-
-    // 🔥 jeśli masz sceny → łączymy w prompt
-    const finalPrompt =
-      Array.isArray(scenes) && scenes.length > 0
-        ? scenes.join(". ")
-        : prompt;
-
-    // 🔥 CALL DO TWOJEGO API (HuggingFace)
-    const hfResponse = await fetch(
-      "https://huggingface.co/spaces/webnowa/nexus-video-api/run",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: finalPrompt,
-          style,
-          duration,
-          ratio,
-          resolution,
-          mode,
-
-          // nowe opcje
-          avatar: avatar || null,
-          voice: voice || "default",
-          image: image || null,
-        }),
-      }
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { persistSession: false } }
     );
 
-    const result = await hfResponse.json();
+    const body = await req.json();
 
-    console.log("HF RESPONSE:", result);
+    // 🔥 TU WSTAWIASZ SWÓJ KOD GENEROWANIA WIDEO
+    // np. wywołanie API, modelu, itp.
+    // const result = await generateVideo(body);
 
-    // 🔥 wyciągamy video URL z różnych formatów API
-    const videoUrl =
-      result?.video_url ||
-      result?.url ||
-      result?.data?.video ||
-      result?.data?.url ||
-      null;
-
-    if (!videoUrl) {
-      return new Response(
-        JSON.stringify({
-          error: "Brak video_url z API",
-          raw: result,
-        }),
-        {
-          status: 500,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-          },
-        }
-      );
-    }
-
+    // PRZYKŁADOWA ODPOWIEDŹ:
     return new Response(
-      JSON.stringify({ video_url: videoUrl }),
+      JSON.stringify({
+        video_url: "https://example.com/video.mp4",
+      }),
       {
         headers: {
+          ...corsHeaders,
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
         },
       }
     );
   } catch (err) {
-    console.error("SERVER ERROR:", err);
-
     return new Response(
-      JSON.stringify({
-        error: err.message || "Server error",
-      }),
+      JSON.stringify({ error: err.message }),
       {
         status: 500,
         headers: {
+          ...corsHeaders,
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
         },
       }
     );
