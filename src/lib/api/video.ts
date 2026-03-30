@@ -1,79 +1,19 @@
-import { supabase } from "@/lib/supabase";
+export async function mergeVideos(clips: string[]) {
+  const endpoint = "https://fdsebtzzxsmsmaaqjdev.supabase.co/functions/v1/merge";
 
-// Typ rekordu wideo
-export type VideoRecord = {
-  id: string;
-  url: string;
-  prompt: string;
-  style?: string;
-  duration?: number;
-  ratio?: string;
-  resolution?: string;
-  created_at: string;
-};
-
-// Zapis wideo do galerii
-export async function saveVideoToGallery(
-  file: File,
-  metadata: {
-    prompt: string;
-    style?: string;
-    duration?: number;
-    ratio?: string;
-    resolution?: string;
-  }
-) {
-  // 1. Upload pliku do Supabase Storage
-  const filePath = `videos/${Date.now()}-${file.name}`;
-
-  const { data: uploadData, error: uploadError } = await supabase.storage
-    .from("videos")
-    .upload(filePath, file);
-
-  if (uploadError) throw uploadError;
-
-  const publicUrl = supabase.storage
-    .from("videos")
-    .getPublicUrl(filePath).data.publicUrl;
-
-  // 2. Zapis metadanych do tabeli
-  const { error: insertError } = await (supabase as any).from("videos").insert({
-    url: publicUrl,
-    prompt: metadata.prompt,
-    style: metadata.style,
-    duration: metadata.duration,
-    ratio: metadata.ratio,
-    resolution: metadata.resolution,
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ clips })
   });
 
-  if (insertError) throw insertError;
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error("Merge failed: " + err);
+  }
 
-  return publicUrl;
-}
-
-// Pobieranie galerii
-export async function getVideoGallery(): Promise<VideoRecord[]> {
-  const { data, error } = await supabase
-    .from("videos" as any)
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error) throw error;
-
-  return (data as any) as VideoRecord[];
-}
-
-// Usuwanie wideo
-export async function deleteVideo(id: string, url: string) {
-  // 1. Usuń rekord z tabeli
-  const { error: deleteError } = await supabase
-    .from("videos" as any)
-    .delete()
-    .eq("id", id);
-
-  if (deleteError) throw deleteError;
-
-  // 2. Usuń plik ze storage
-  const path = url.split("/").slice(-1)[0]; // nazwa pliku
-  await supabase.storage.from("videos").remove([`videos/${path}`]);
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
 }
