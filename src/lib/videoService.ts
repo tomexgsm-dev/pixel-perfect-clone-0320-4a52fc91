@@ -1,13 +1,13 @@
 export interface VideoPayload {
   prompt: string;
+  mode?: string;
+  duration?: number;
   avatar?: string;
   voice?: string;
   scenes?: { text: string; duration?: number }[];
   style?: string;
-  duration?: number;      // mapowane na duration_seconds w backendzie
   ratio?: string;
   resolution?: string;
-  mode?: string;          // tiktok | social | cinematic | ads | music | music_long | experimental
   image?: string;
 }
 
