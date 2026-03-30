@@ -192,7 +192,7 @@ Return ONLY valid JSON, no markdown.`,
   } catch (err) {
     console.error("analyze-website error:", err);
     return new Response(
-      JSON.stringify({ error: err.message || "Server error" }),
+      JSON.stringify({ error: err instanceof Error ? err.message : "Server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

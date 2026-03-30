@@ -25,8 +25,8 @@ const cache = new Map<string, string>();
 
 function cacheSet(prompt: string, image: string) {
   if (cache.size > 50) {
-    const first = cache.keys().next().value;
-    cache.delete(first);
+    const first = cache.keys().next().value as string | undefined;
+    if (first) cache.delete(first);
   }
 
   cache.set(prompt, image);
