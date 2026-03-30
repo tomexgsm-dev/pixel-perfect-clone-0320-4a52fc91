@@ -1,124 +1,186 @@
-// Supabase Edge Function: clever-api
-// Wklej ten kod w Supabase Dashboard → Edge Functions → clever-api → Edit
-
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// Czeka aż wideo będzie gotowe (max 5 minut)
-async function pollUntilDone(
-  baseUrl: string,
-  taskId: string,
-  maxAttempts = 60,
-  intervalMs = 5000
-): Promise<string> {
-  for (let i = 0; i < maxAttempts; i++) {
-    const res = await fetch(`${baseUrl}/video/status/${taskId}`);
-    if (!res.ok) throw new Error(`Status check failed: ${res.status}`);
+// ================= LOSOWANIE MODELU =================
 
-    const data = await res.json();
+// Możesz ustawić enabled: false dla modeli które nie działają
+const RANDOM_MODELS = [
+  { name: "mistral",  enabled: true },
+  { name: "claude",   enabled: true },
+  { name: "llama",    enabled: true },
+  { name: "deepseek", enabled: true },
+];
 
-    if (data.status === "done" && data.ready) {
-      return `${baseUrl}/video/${taskId}`;
-    }
-
-    if (data.status === "error") {
-      throw new Error(`Video generation failed: ${data.error}`);
-    }
-
-    // czekaj przed następnym sprawdzeniem
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-
-  throw new Error("Timeout: video generation took too long");
+function pickRandomModel(): string {
+  const active = RANDOM_MODELS.filter((m) => m.enabled);
+  return active[Math.floor(Math.random() * active.length)].name;
 }
 
+// ================= PROVIDER CONFIG =================
+
+function getProviderConfig(model: string) {
+  switch (model) {
+    case "deepseek":
+      return {
+        url: "https://api.deepseek.com/v1/chat/completions",
+        key: Deno.env.get("DEEPSEEK_KEY"),
+        model: "deepseek-chat",
+        type: "openai" as const,
+      };
+    case "mistral":
+      return {
+        url: "https://router.huggingface.co/hf-inference/models/mistralai/Mistral-7B-Instruct-v0.3/v1/chat/completions",
+        key: Deno.env.get("HF_KEY"),
+        model: "mistralai/Mistral-7B-Instruct-v0.3",
+        type: "openai" as const,
+      };
+    case "claude":
+      return {
+        url: "https://api.anthropic.com/v1/messages",
+        key: Deno.env.get("CLAUDE_KEY"),
+        model: "claude-3-sonnet-20240229",
+        type: "claude" as const,
+      };
+    case "llama":
+      return {
+        url: "https://api.together.xyz/v1/chat/completions",
+        key: Deno.env.get("TOGETHER_KEY"),
+        model: "meta-llama/Llama-3-70b-chat-hf",
+        type: "openai" as const,
+      };
+    case "gemini":
+    default:
+      return {
+        url: "https://ai.gateway.lovable.dev/v1/chat/completions",
+        key: Deno.env.get("LOVABLE_API_KEY"),
+        model: "google/gemini-3-flash-preview",
+        type: "openai" as const,
+      };
+  }
+}
+
+// ================= CALLS =================
+
+async function callClaude(config: any, messages: any[], system: string) {
+  return fetch(config.url, {
+    method: "POST",
+    headers: {
+      "x-api-key": config.key,
+      "anthropic-version": "2023-06-01",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.model,
+      max_tokens: 4096,
+      system,
+      messages,
+      stream: true,
+    }),
+  });
+}
+
+async function callOpenAICompatible(config: any, messages: any[], system: string) {
+  return fetch(config.url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages: [{ role: "system", content: system }, ...messages],
+      stream: true,
+    }),
+  });
+}
+
+async function callModel(config: any, messages: any[], system: string) {
+  if (config.type === "claude") return callClaude(config, messages, system);
+  return callOpenAICompatible(config, messages, system);
+}
+
+// ================= MAIN =================
+
 serve(async (req) => {
-  // Preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const NEXUS_VIDEO_API = Deno.env.get("NEXUS_VIDEO_API");
-    if (!NEXUS_VIDEO_API) {
-      throw new Error("NEXUS_VIDEO_API secret is not configured");
-    }
-
-    const body = await req.json();
-    const { prompt, avatar, voice, scenes, style, duration, mode } = body;
-
-    if (!prompt || typeof prompt !== "string") {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
       return new Response(
-        JSON.stringify({ error: "prompt is required" }),
+        JSON.stringify({ error: "Invalid JSON" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Wybierz endpoint na podstawie template/style/mode
-    // tiktok, social, cinematic, ads, music, experimental
-    let endpoint = "cinematic"; // domyślny
+    const messages = Array.isArray(body.messages)
+      ? body.messages
+      : [{ role: "user", content: body.prompt || "Hello" }];
 
-    if (style === "tiktok" || mode === "tiktok")   endpoint = "tiktok";
-    else if (style === "social")                    endpoint = "social";
-    else if (style === "ads" || mode === "ad")      endpoint = "ads";
-    else if (style === "music")                     endpoint = "music";
-    else if (style === "cinematic")                 endpoint = "cinematic";
+    const system = body.systemPrompt || "You are a helpful assistant. Answer clearly.";
 
-    // Jeśli są sceny — połącz je z promptem
-    let finalPrompt = prompt;
-    if (Array.isArray(scenes) && scenes.length > 0) {
-      const sceneTexts = scenes
-        .map((s: { text: string }, i: number) => `Scene ${i + 1}: ${s.text}`)
-        .filter((s: string) => s.trim() !== `Scene ${scenes.indexOf}: `);
-      if (sceneTexts.length > 0) {
-        finalPrompt = `${prompt}\n\n${sceneTexts.join("\n")}`;
-      }
+    // Jeśli model = "random" lub nie podano → losuj; inaczej użyj podanego
+    const requestedModel = body.model || "random";
+    const model = requestedModel === "random" ? pickRandomModel() : requestedModel;
+
+    console.log(`[AI Router] Model wybrany: ${model} (żądany: ${requestedModel})`);
+
+    const config = getProviderConfig(model);
+
+    if (!config.key) {
+      return new Response(
+        JSON.stringify({ error: "Missing API key for selected model" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // 1. Wyślij żądanie do Nexus Video API
-    const startRes = await fetch(`${NEXUS_VIDEO_API}/video/${endpoint}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt: finalPrompt,
-        duration_seconds: duration || 10,
-      }),
+    const response = await callModel(config, messages, system);
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error("AI error:", response.status, text);
+
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "Rate limit exceeded, please try again later." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "Payment required, please add funds." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ error: "AI request failed" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Dodajemy nagłówek z nazwą użytego modelu (opcjonalnie frontend może go odczytać)
+    return new Response(response.body, {
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "text/event-stream",
+        "X-AI-Model-Used": model,
+      },
     });
-
-    if (!startRes.ok) {
-      const errText = await startRes.text();
-      throw new Error(`Nexus API error: ${startRes.status} — ${errText}`);
-    }
-
-    const { task_id } = await startRes.json();
-    if (!task_id) throw new Error("No task_id returned from Nexus API");
-
-    // 2. Polluj status aż wideo będzie gotowe
-    const videoUrl = await pollUntilDone(NEXUS_VIDEO_API, task_id);
-
-    return new Response(
-      JSON.stringify({ video_url: videoUrl, task_id }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
-
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("clever-api error:", message);
-
+    console.error("ERROR:", err);
     return new Response(
-      JSON.stringify({ error: message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ error: "Server error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
