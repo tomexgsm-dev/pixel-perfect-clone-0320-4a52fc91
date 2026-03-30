@@ -1,19 +1,22 @@
-// src/lib/mergeVideos.ts
+// src/lib/api/video.ts
 
-export async function mergeVideos(clips: string[]) {
-  if (!Array.isArray(clips) || clips.length === 0) {
-    throw new Error("No clips provided for merge");
-  }
+// Zapis wideo do galerii (Supabase Storage)
+export async function saveVideoToGallery(
+  file: File,
+  metadata: Record<string, unknown>
+) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("metadata", JSON.stringify(metadata));
 
-  const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/merge`;
+  const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/save-video`;
 
   const res = await fetch(endpoint, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
       apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
     },
-    body: JSON.stringify({ clips })
+    body: formData
   });
 
   if (!res.ok) {
@@ -23,12 +26,13 @@ export async function mergeVideos(clips: string[]) {
     } catch {
       err = await res.text();
     }
-    throw new Error("Merge failed: " + JSON.stringify(err));
+    throw new Error("Failed to save video: " + JSON.stringify(err));
   }
 
-  // Supabase Edge Function zwraca binarny plik MP4
-  const blob = await res.blob();
+  return res.json();
+}
 
-  // Tworzymy lokalny URL do odtworzenia wideo
-  return URL.createObjectURL(blob);
+// Pobieranie listy wideo z galerii (placeholder — wymagany przez build)
+export async function getVideoGallery() {
+  return [];
 }
