@@ -9,9 +9,9 @@ const corsHeaders = {
 // ================= LOSOWANIE MODELU =================
 
 const RANDOM_MODELS = [
-  { name: "mistral",  enabled: true },
-  { name: "claude",   enabled: true },
-  { name: "llama",    enabled: true },
+  { name: "mistral", enabled: true },
+  { name: "claude", enabled: true },
+  { name: "llama", enabled: true },
   { name: "deepseek", enabled: false }, // wyłączony - brak DEEPSEEK_KEY w Secrets
 ];
 
@@ -115,15 +115,13 @@ serve(async (req) => {
     try {
       body = await req.json();
     } catch {
-      return new Response(
-        JSON.stringify({ error: "Invalid JSON" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const messages = Array.isArray(body.messages)
-      ? body.messages
-      : [{ role: "user", content: body.prompt || "Hello" }];
+    const messages = Array.isArray(body.messages) ? body.messages : [{ role: "user", content: body.prompt || "Hello" }];
 
     const system = body.systemPrompt || "You are a helpful assistant. Answer clearly.";
 
@@ -135,10 +133,10 @@ serve(async (req) => {
     const config = getProviderConfig(model);
 
     if (!config.key) {
-      return new Response(
-        JSON.stringify({ error: "Missing API key for selected model" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Missing API key for selected model" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const response = await callModel(config, messages, system);
@@ -148,22 +146,22 @@ serve(async (req) => {
       console.error("AI error:", response.status, text);
 
       if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded, please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return new Response(JSON.stringify({ error: "Rate limit exceeded, please try again later." }), {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
       if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Payment required, please add funds." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return new Response(JSON.stringify({ error: "Payment required, please add funds." }), {
+          status: 402,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
-      return new Response(
-        JSON.stringify({ error: "AI request failed" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "AI request failed" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(response.body, {
@@ -175,9 +173,9 @@ serve(async (req) => {
     });
   } catch (err) {
     console.error("ERROR:", err);
-    return new Response(
-      JSON.stringify({ error: "Server error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: "Server error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
