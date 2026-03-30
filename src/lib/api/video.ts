@@ -36,3 +36,9 @@ export async function saveVideoToGallery(
 export async function getVideoGallery() {
   return [];
 }
+
+// Usuwanie wideo (placeholder — wymagany przez build)
+export async function deleteVideo(id: string) {
+  console.warn("deleteVideo() placeholder called with id:", id);
+  return { success: true };
+}
