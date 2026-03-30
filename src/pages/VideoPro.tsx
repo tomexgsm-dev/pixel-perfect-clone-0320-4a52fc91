@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 import {
   saveVideoToGallery,
   getVideoGallery,
   deleteVideo,
 } from "@/lib/api/video";
+import GenerateVideoButton from "@/components/GenerateVideoButton";
 
 type VideoRecord = {
   id: string;
