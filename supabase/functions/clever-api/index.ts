@@ -68,12 +68,15 @@ serve(async (req) => {
       "experimental",
     ];
 
+    // UI musi wysyłać "mode", NIE "style"
     const mode = (body?.mode ?? "cinematic").toLowerCase();
     const selectedMode = allowedModes.includes(mode) ? mode : "cinematic";
 
     const startEndpoint = `${baseUrl}/video/${selectedMode}`;
 
+    // payload do backendu
     const payload: Record<string, unknown> = { prompt };
+
     if (typeof body?.duration === "number") {
       payload["duration_seconds"] = body.duration;
     }
