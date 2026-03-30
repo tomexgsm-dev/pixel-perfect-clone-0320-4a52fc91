@@ -1,5 +1,3 @@
-import { supabase } from "@/lib/supabase";
-
 export interface VideoPayload {
   prompt: string;
   avatar?: string;
@@ -12,20 +10,22 @@ export interface VideoPayload {
   mode?: string;
 }
 
-export interface VideoResult {
-  video_url?: string;
-  job_id?: string;
-  error?: string;
-}
+export async function generateVideo(payload: VideoPayload) {
+  const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-video`;
 
-export async function generateVideo(payload: VideoPayload): Promise<VideoResult> {
-  const { data, error } = await supabase.functions.invoke("video-pro", {
-    body: payload,
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify(payload),
   });
 
-  if (error) {
-    throw new Error(error.message || "Video generation failed");
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error("Video generation failed: " + err);
   }
 
-  return data as VideoResult;
+  return res.json();
 }
