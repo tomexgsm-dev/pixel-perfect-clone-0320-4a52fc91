@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 import {
   saveVideoToGallery,
   getVideoGallery,
   deleteVideo,
 } from "@/lib/api/video";
+import GenerateVideoButton from "@/components/GenerateVideoButton";
 
 type VideoRecord = {
   id: string;
@@ -25,13 +25,8 @@ export default function VideoPro() {
   const [ratio, setRatio] = useState("16:9");
   const [resolution, setResolution] = useState("1080p");
 
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-
-  const [isLoading, setIsLoading] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [gallery, setGallery] = useState<VideoRecord[]>([]);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // 🔥 NOWE FEATURE
   const [avatar, setAvatar] = useState("avatar1");
@@ -50,82 +45,7 @@ export default function VideoPro() {
     })();
   }, []);
 
-  async function handleGenerate(
-    mode: "text" | "image" | "avatar" | "music" | "social"
-  ) {
-    if (!prompt.trim()) {
-      toast({
-        title: "Błąd",
-        description: "Wpisz opis wideo przed generowaniem.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      setErrorMessage(null);
-
-      const body: Record<string, unknown> = {
-        prompt,
-        style,
-        duration,
-        ratio,
-        resolution,
-        mode,
-
-        // 🔥 NOWE
-        avatar,
-        voice,
-        template,
-        scenes,
-      };
-
-      if (mode === "image" && imageFile) {
-        body.image = await fileToBase64(imageFile);
-      }
-
-      if (mode === "avatar" && avatarFile) {
-        body.avatarImage = await fileToBase64(avatarFile);
-      }
-
-      const { data, error } = await supabase.functions.invoke("clever-api", {
-        body,
-      });
-
-      if (error) {
-        console.error(error);
-        setErrorMessage("API error");
-        return;
-      }
-
-      if (!data?.video_url) {
-        setErrorMessage("Brak video URL");
-        return;
-      }
-
-      const url = data.video_url as string;
-      setVideoUrl(url);
-
-      const file = await fetchAsFile(url, "video.mp4");
-
-      await saveVideoToGallery(file, {
-        prompt,
-        style,
-        duration,
-        ratio,
-        resolution,
-      });
-
-      const updated = await getVideoGallery();
-      setGallery(updated as VideoRecord[]);
-    } catch (e) {
-      console.error(e);
-      setErrorMessage("Server error");
-    } finally {
-      setIsLoading(false);
-    }
-  }
+  // Gallery refresh after generation is handled via GenerateVideoButton's onSuccess
 
   async function handleDelete(id: string, url: string) {
     await deleteVideo(id, url);
@@ -217,15 +137,17 @@ export default function VideoPro() {
           </button>
 
           {/* BUTTON */}
-          <button
-            onClick={() => handleGenerate("text")}
-            disabled={isLoading}
-            className="bg-purple-600 p-3 rounded"
-          >
-            Generate Video
-          </button>
-
-          {errorMessage && <div>{errorMessage}</div>}
+          <GenerateVideoButton
+            prompt={prompt}
+            avatar={avatar}
+            voice={voice}
+            scenes={scenes}
+            style={style}
+            duration={duration}
+            ratio={ratio}
+            resolution={resolution}
+            mode="text"
+          />
         </div>
 
         {/* RIGHT */}
