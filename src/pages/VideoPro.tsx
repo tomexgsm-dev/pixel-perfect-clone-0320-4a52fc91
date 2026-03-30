@@ -142,15 +142,17 @@ export default function VideoPro() {
           </button>
 
           {/* BUTTON */}
-          <button
-            onClick={() => handleGenerate("text")}
-            disabled={isLoading}
-            className="bg-purple-600 p-3 rounded"
-          >
-            Generate Video
-          </button>
-
-          {errorMessage && <div>{errorMessage}</div>}
+          <GenerateVideoButton
+            prompt={prompt}
+            avatar={avatar}
+            voice={voice}
+            scenes={scenes}
+            style={style}
+            duration={duration}
+            ratio={ratio}
+            resolution={resolution}
+            mode="text"
+          />
         </div>
 
         {/* RIGHT */}
