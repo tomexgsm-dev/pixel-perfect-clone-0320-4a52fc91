@@ -7,15 +7,13 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// ================= MISTRAL CONFIG =================
-
+// =============== MISTRAL CONFIG ===============
 const MISTRAL_URL =
   "https://router.huggingface.co/hf-inference/models/mistralai/Mistral-7B-Instruct-v0.3/v1/chat/completions";
 
 const HF_KEY = Deno.env.get("HF_KEY");
 
-// ================= MAIN =================
-
+// =============== MAIN ===============
 serve(async (req) => {
   // Preflight
   if (req.method === "OPTIONS") {
