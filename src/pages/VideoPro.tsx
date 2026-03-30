@@ -155,6 +155,7 @@ export default function VideoPro() {
             ratio={ratio}
             resolution={resolution}
             mode="text"
+            onSuccess={handleVideoSuccess}
           />
         </div>
 
