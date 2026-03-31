@@ -552,7 +552,7 @@ export default function VideoPro() {
                           />
                           <button
                             onClick={async () => {
-                              await deleteVideo(vid.id, vid.url);
+                              await deleteVideo(vid.id);
                               setGallery((p) =>
                                 p.filter((v) => v.id !== vid.id)
                               );
