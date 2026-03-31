@@ -1,108 +1,146 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// =============== MISTRAL CONFIG ===============
-const MISTRAL_URL =
-  "https://router.huggingface.co/hf-inference/models/mistralai/Mistral-7B-Instruct-v0.3/v1/chat/completions";
+const RANDOM_MODELS = [
+  { name: "mistral",  enabled: false },
+  { name: "claude",   enabled: true },
+  { name: "llama",    enabled: true },
+  { name: "deepseek", enabled: false },
+];
 
-const HF_KEY = Deno.env.get("HF_KEY");
+function pickRandomModel(): string {
+  const active = RANDOM_MODELS.filter((m) => m.enabled);
+  return active[Math.floor(Math.random() * active.length)].name;
+}
 
-// =============== MAIN ===============
+function getProviderConfig(model: string) {
+  switch (model) {
+    case "claude":
+      return {
+        url: "https://api.anthropic.com/v1/messages",
+        key: Deno.env.get("CLAUDE_KEY"),
+        model: "claude-3-sonnet-20240229",
+        type: "claude" as const,
+      };
+    case "llama":
+      return {
+        url: "https://api.together.xyz/v1/chat/completions",
+        key: Deno.env.get("TOGETHER_KEY"),
+        model: "meta-llama/Llama-3-70b-chat-hf",
+        type: "openai" as const,
+      };
+    default:
+      return {
+        url: "https://api.anthropic.com/v1/messages",
+        key: Deno.env.get("CLAUDE_KEY"),
+        model: "claude-3-sonnet-20240229",
+        type: "claude" as const,
+      };
+  }
+}
+
+async function callClaude(config: any, messages: any[], system: string) {
+  return fetch(config.url, {
+    method: "POST",
+    headers: {
+      "x-api-key": config.key,
+      "anthropic-version": "2023-06-01",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.model,
+      max_tokens: 4096,
+      system,
+      messages,
+      stream: true,
+    }),
+  });
+}
+
+async function callOpenAICompatible(config: any, messages: any[], system: string) {
+  return fetch(config.url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages: [{ role: "system", content: system }, ...messages],
+      stream: true,
+    }),
+  });
+}
+
+async function callModel(config: any, messages: any[], system: string) {
+  if (config.type === "claude") return callClaude(config, messages, system);
+  return callOpenAICompatible(config, messages, system);
+}
+
 serve(async (req) => {
-  // Preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Parse JSON
     let body;
     try {
       body = await req.json();
     } catch {
       return new Response(
         JSON.stringify({ error: "Invalid JSON" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Validate key
-    if (!HF_KEY) {
-      return new Response(
-        JSON.stringify({ error: "Missing HF_KEY in environment variables" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    // Prepare messages
     const messages = Array.isArray(body.messages)
       ? body.messages
       : [{ role: "user", content: body.prompt || "Hello" }];
 
-    const system =
-      body.systemPrompt ||
-      "You are a helpful assistant. Answer clearly and concisely.";
+    const system = body.systemPrompt || "You are a helpful assistant. Answer clearly.";
 
-    // Call Mistral
-    const response = await fetch(MISTRAL_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${HF_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "mistralai/Mistral-7B-Instruct-v0.3",
-        messages: [{ role: "system", content: system }, ...messages],
-        stream: true,
-      }),
-    });
+    const requestedModel = body.model || "random";
+    const model = requestedModel === "random" ? pickRandomModel() : requestedModel;
 
-    // Handle errors
-    if (!response.ok) {
-      const text = await response.text();
-      console.error("Mistral error:", response.status, text);
+    console.log(`[AI Router] Model: ${model}`);
 
+    const config = getProviderConfig(model);
+
+    if (!config.key) {
       return new Response(
-        JSON.stringify({
-          error: "Mistral request failed",
-          status: response.status,
-          details: text,
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        JSON.stringify({ error: "Missing API key for selected model" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Stream response
+    const response = await callModel(config, messages, system);
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error("AI error:", response.status, text);
+      return new Response(
+        JSON.stringify({ error: "AI request failed", status: response.status, details: text }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(response.body, {
       headers: {
         ...corsHeaders,
         "Content-Type": "text/event-stream",
-        "X-AI-Model-Used": "mistral",
+        "X-AI-Model-Used": model,
       },
     });
   } catch (err) {
-    console.error("SERVER ERROR:", err);
+    console.error("ERROR:", err);
     return new Response(
-      JSON.stringify({ error: "Server error", details: String(err) }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ error: "Server error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
