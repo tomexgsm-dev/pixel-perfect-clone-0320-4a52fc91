@@ -187,7 +187,7 @@ export default function VideoPro() {
       try {
         const blob = await fetch(url).then((r) => r.blob());
         const file = new File([blob], "video.mp4", { type: blob.type });
-        await saveVideoToGallery(file, { prompt, style, duration, ratio, resolution });
+        await saveVideoToGallery(file, { prompt, mode });
         const updated = await getVideoGallery();
         setGallery(updated as VideoRecord[]);
       } catch (e) {
