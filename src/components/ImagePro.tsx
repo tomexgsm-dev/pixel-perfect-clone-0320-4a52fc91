@@ -668,6 +668,13 @@ export default function ImagePro() {
           </motion.aside>
         )}
       </AnimatePresence>
+      {/* IMAGE EDIT DIALOG */}
+      <ImageEditDialog
+        open={!!editingImage}
+        onOpenChange={(open) => { if (!open) setEditingImage(null); }}
+        imageUrl={editingImage?.url || ""}
+        imageName={editingImage?.name}
+      />
     </div>
   );
 }
