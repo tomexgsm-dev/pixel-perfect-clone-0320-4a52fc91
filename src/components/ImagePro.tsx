@@ -75,6 +75,7 @@ export default function ImagePro() {
 
   const [gallery, setGallery] = useState<any[]>([]);
   const [isLoadingGallery, setIsLoadingGallery] = useState(true);
+  const [editingImage, setEditingImage] = useState<{ url: string; name: string } | null>(null);
 
   const canUseImageTool = useMemo(
     () => tool && tool !== "blend",
