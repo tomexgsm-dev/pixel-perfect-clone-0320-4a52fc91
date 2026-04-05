@@ -10,7 +10,10 @@ import {
   Loader2,
   SparklesIcon,
   Trash2,
+  Download,
+  Pencil,
 } from "lucide-react";
+import ImageEditDialog from "@/components/ImageEditDialog";
 import { generateImage, promptAI, blendPro } from "@/lib/api/image";
 import { cn } from "@/lib/utils";
 import { saveImageToGallery, getGallery, deleteImage } from "@/lib/api/gallery";
