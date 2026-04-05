@@ -526,16 +526,41 @@ export default function ImagePro() {
                   <img
                     src={img.url}
                     className="w-full h-32 object-cover"
+                    alt={img.prompt || "Gallery image"}
                   />
-                  <button
-                    onClick={async () => {
-                      await deleteImage(img.id, img.url);
-                      setGallery((prev) => prev.filter((i) => i.id !== img.id));
-                    }}
-                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-white opacity-0 group-hover:opacity-100 transition"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {/* Overlay buttons */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-end justify-center gap-1.5 p-2 opacity-0 group-hover:opacity-100">
+                    {/* Download */}
+                    <a
+                      href={img.url}
+                      download={`image-${img.id}.png`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-full bg-black/70 text-white hover:bg-violet-600 transition"
+                      title="Download"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </a>
+                    {/* Edit */}
+                    <button
+                      onClick={() => setEditingImage({ url: img.url, name: `image-${img.id}.png` })}
+                      className="p-1.5 rounded-full bg-black/70 text-white hover:bg-violet-600 transition"
+                      title="Edit"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    {/* Delete */}
+                    <button
+                      onClick={async () => {
+                        await deleteImage(img.id, img.url);
+                        setGallery((prev) => prev.filter((i) => i.id !== img.id));
+                      }}
+                      className="p-1.5 rounded-full bg-black/70 text-white hover:bg-red-600 transition"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
