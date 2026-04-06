@@ -31,6 +31,7 @@ const APP_DEFS: AppDef[] = [
   { id: "diet", emoji: "🥗", color: "from-lime-500/20 to-green-600/20 border-lime-500/30", category: "knowledge" },
   { id: "travel", emoji: "✈️", color: "from-indigo-500/20 to-blue-600/20 border-indigo-500/30", category: "knowledge" },
   { id: "fitness", emoji: "💪", color: "from-red-500/20 to-rose-600/20 border-red-500/30", category: "knowledge" },
+  { id: "page-generator", emoji: "🌐", color: "from-teal-500/20 to-cyan-600/20 border-teal-500/30", category: "productivity" },
 ];
 
 export default function AppsPage() {
@@ -134,9 +135,12 @@ export default function AppsPage() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => {
-                    // 🔥 SPECJALNE ZACHOWANIE DLA VIDEO-PRO
                     if (app.id === "video-pro") {
                       navigate("/video-pro");
+                      return;
+                    }
+                    if (app.id === "page-generator") {
+                      window.open("https://stronaaio.lovable.app", "_blank");
                       return;
                     }
                     createMutation.mutate(app);

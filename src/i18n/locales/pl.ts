@@ -176,6 +176,11 @@ export const pl = {
         systemPrompt:
           "Jesteś ekspertem od podróży. Twórz szczegółowe plany podróży.",
       },
+      "page-generator": {
+        name: "Generowanie stron",
+        description: "Twórz profesjonalne strony internetowe za pomocą AI",
+        systemPrompt: "",
+      },
       fitness: {
         name: "Trener personalny",
         description: "Plany treningowe i porady",
