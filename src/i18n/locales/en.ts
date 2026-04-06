@@ -174,6 +174,11 @@ export const en = {
         systemPrompt:
           "You are a travel expert. Create detailed travel itineraries and recommend attractions.",
       },
+      "page-generator": {
+        name: "Generowanie stron",
+        description: "Twórz profesjonalne strony internetowe za pomocą AI",
+        systemPrompt: "",
+      },
       fitness: {
         name: "Personal Trainer",
         description: "Training plans and advice",

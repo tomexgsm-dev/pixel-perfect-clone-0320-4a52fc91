@@ -135,9 +135,12 @@ export default function AppsPage() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => {
-                    // 🔥 SPECJALNE ZACHOWANIE DLA VIDEO-PRO
                     if (app.id === "video-pro") {
                       navigate("/video-pro");
+                      return;
+                    }
+                    if (app.id === "page-generator") {
+                      window.open("https://stronaaio.lovable.app", "_blank");
                       return;
                     }
                     createMutation.mutate(app);
