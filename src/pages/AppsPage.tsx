@@ -31,6 +31,7 @@ const APP_DEFS: AppDef[] = [
   { id: "diet", emoji: "🥗", color: "from-lime-500/20 to-green-600/20 border-lime-500/30", category: "knowledge" },
   { id: "travel", emoji: "✈️", color: "from-indigo-500/20 to-blue-600/20 border-indigo-500/30", category: "knowledge" },
   { id: "fitness", emoji: "💪", color: "from-red-500/20 to-rose-600/20 border-red-500/30", category: "knowledge" },
+  { id: "page-generator", emoji: "🌐", color: "from-teal-500/20 to-cyan-600/20 border-teal-500/30", category: "productivity" },
 ];
 
 export default function AppsPage() {
