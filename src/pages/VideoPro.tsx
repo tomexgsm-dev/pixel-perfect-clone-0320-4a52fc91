@@ -165,6 +165,16 @@ export default function VideoPro() {
   const [aiPrompts, setAiPrompts] = useState<string[]>([]);
   const [isLoadingAiPrompts, setIsLoadingAiPrompts] = useState(false);
 
+  // Wan 2.2 I2V state
+  type GenerationMode = "avatar" | "i2v";
+  const [genMode, setGenMode] = useState<GenerationMode>("i2v");
+  const [inputImage, setInputImage] = useState<string | null>(null);
+  const [inputImageName, setInputImageName] = useState<string>("");
+  const [i2vDuration, setI2vDuration] = useState(3.5);
+  const [i2vFps, setI2vFps] = useState(16);
+  const [i2vSafeMode, setI2vSafeMode] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     (async () => {
       try {
