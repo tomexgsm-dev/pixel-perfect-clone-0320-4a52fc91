@@ -740,6 +740,8 @@ export default function VideoPro() {
                     <p className="text-xs text-destructive">{error}</p>
                   )}
                 </div>
+                  </>
+                )}
 
                 {/* PREVIEW */}
                 <div className="mt-4">
