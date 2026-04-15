@@ -81,7 +81,7 @@ function mapTemplateToMode(template: string): string {
 }
 
 /* ------------------------------------------------
-   API
+   API — Original clever-api
 ------------------------------------------------ */
 
 async function callGenerateVideo(payload: {
@@ -110,6 +110,35 @@ async function callGenerateVideo(payload: {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || `Server error: ${res.status}`);
   return data.video_url || data.url || "";
+}
+
+/* ------------------------------------------------
+   API — Wan 2.2 I2V (Image-to-Video)
+------------------------------------------------ */
+
+async function callWanVideo(payload: {
+  image: string;
+  prompt: string;
+  duration: number;
+  fps: number;
+  safe_mode: boolean;
+}): Promise<string> {
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/wan-video`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `Server error: ${res.status}`);
+  return data.video_url || "";
 }
 
 /* ------------------------------------------------
