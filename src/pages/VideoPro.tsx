@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles,
@@ -11,6 +11,8 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Trash2,
+  Upload,
+  ImageIcon,
 } from "lucide-react";
 import { Layout } from "@/components/Layout";
 import { cn } from "@/lib/utils";
