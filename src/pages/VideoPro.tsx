@@ -241,6 +241,55 @@ export default function VideoPro() {
     }
   }
 
+  /* handle image upload for I2V */
+  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setInputImageName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setInputImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /* generate I2V via Wan 2.2 */
+  async function handleGenerateI2V() {
+    if (!inputImage) {
+      setError("Prześlij obraz wejściowy.");
+      return;
+    }
+
+    try {
+      setError(null);
+      setIsGenerating(true);
+
+      const url = await callWanVideo({
+        image: inputImage,
+        prompt: prompt || "make this image come alive, cinematic motion, smooth animation",
+        duration: i2vDuration,
+        fps: i2vFps,
+        safe_mode: i2vSafeMode,
+      });
+
+      setVideoUrl(url);
+
+      try {
+        const blob = await fetch(url).then((r) => r.blob());
+        const file = new File([blob], "video.mp4", { type: blob.type });
+        await saveVideoToGallery(file, { prompt, mode: "i2v-wan22" });
+        const updated = await getVideoGallery();
+        setGallery(updated as VideoRecord[]);
+      } catch (e) {
+        console.error("Gallery save failed", e);
+      }
+    } catch (e: any) {
+      setError(e?.message || "Video generation failed");
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
   /* ai prompts */
   async function loadAiPrompts() {
     try {
