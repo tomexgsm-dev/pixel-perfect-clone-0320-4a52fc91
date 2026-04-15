@@ -411,6 +411,173 @@ export default function VideoPro() {
                   </div>
                 </motion.div>
 
+                {/* MODE TOGGLE */}
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Tryb generowania
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setGenMode("i2v")}
+                      className={cn(
+                        "px-4 py-2 rounded-full text-xs font-medium border transition-all flex items-center gap-1.5",
+                        genMode === "i2v"
+                          ? "bg-violet-600 text-white border-violet-500 shadow-glow"
+                          : "bg-card text-muted-foreground border-border hover:border-violet-500/60 hover:text-foreground"
+                      )}
+                    >
+                      <ImageIcon className="w-3.5 h-3.5" />
+                      Image → Video (Wan 2.2)
+                    </button>
+                    <button
+                      onClick={() => setGenMode("avatar")}
+                      className={cn(
+                        "px-4 py-2 rounded-full text-xs font-medium border transition-all flex items-center gap-1.5",
+                        genMode === "avatar"
+                          ? "bg-violet-600 text-white border-violet-500 shadow-glow"
+                          : "bg-card text-muted-foreground border-border hover:border-violet-500/60 hover:text-foreground"
+                      )}
+                    >
+                      <User className="w-3.5 h-3.5" />
+                      Avatar Video
+                    </button>
+                  </div>
+                </div>
+
+                {/* I2V MODE — Wan 2.2 */}
+                {genMode === "i2v" && (
+                  <div className="space-y-4">
+                    {/* Image Upload */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                        <ImageIcon className="w-3 h-3" /> Obraz wejściowy
+                      </label>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="rounded-2xl border-2 border-dashed border-border bg-card/60 hover:border-violet-500/60 transition-colors cursor-pointer min-h-[160px] flex flex-col items-center justify-center gap-2 overflow-hidden"
+                      >
+                        {inputImage ? (
+                          <div className="relative w-full">
+                            <img src={inputImage} alt="Input" className="w-full max-h-[240px] object-contain" />
+                            <div className="absolute bottom-2 left-2 bg-black/70 rounded-lg px-2 py-1 text-[10px] text-white">
+                              {inputImageName}
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setInputImage(null);
+                                setInputImageName("");
+                              }}
+                              className="absolute top-2 right-2 p-1 rounded-full bg-black/70 text-white hover:bg-red-600 transition"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <Upload className="w-8 h-8 text-muted-foreground/60" />
+                            <p className="text-xs text-muted-foreground">Upuść obraz tutaj lub kliknij</p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Prompt */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-muted-foreground">Prompt</label>
+                      <textarea
+                        value={prompt}
+                        onChange={(e) => setPrompt(e.target.value)}
+                        rows={2}
+                        className="w-full resize-none rounded-2xl border border-border bg-card/80 px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+                        placeholder="make this image come alive, cinematic motion, smooth animation"
+                      />
+                    </div>
+
+                    {/* Duration */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        Czas trwania: {i2vDuration.toFixed(1)}s
+                      </label>
+                      <input
+                        type="range"
+                        min={0.5}
+                        max={10}
+                        step={0.5}
+                        value={i2vDuration}
+                        onChange={(e) => setI2vDuration(parseFloat(e.target.value))}
+                        className="w-full accent-violet-500"
+                      />
+                      <div className="flex justify-between text-[10px] text-muted-foreground">
+                        <span>0.5s</span>
+                        <span>10s</span>
+                      </div>
+                    </div>
+
+                    {/* FPS */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        Video Fluidity (FPS)
+                      </label>
+                      <div className="flex gap-2">
+                        {[16, 32, 64, 128].map((fps) => (
+                          <button
+                            key={fps}
+                            onClick={() => setI2vFps(fps)}
+                            className={cn(
+                              "px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
+                              i2vFps === fps
+                                ? "bg-violet-600 text-white border-violet-500"
+                                : "bg-card text-muted-foreground border-border hover:border-violet-500/60"
+                            )}
+                          >
+                            {fps}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Safe Mode */}
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={i2vSafeMode}
+                        onChange={(e) => setI2vSafeMode(e.target.checked)}
+                        className="rounded border-border accent-violet-500"
+                      />
+                      🛡️ Safe Mode
+                      <span className="text-[10px]">(+20% processing time)</span>
+                    </label>
+
+                    {/* Generate I2V */}
+                    <div className="flex flex-wrap gap-3 items-center">
+                      <button
+                        onClick={handleGenerateI2V}
+                        disabled={isGenerating || !inputImage}
+                        className="inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-4 py-2 text-sm font-medium text-white shadow-glow hover:bg-violet-500 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {isGenerating ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4" />
+                        )}
+                        Generuj wideo z obrazu
+                      </button>
+                      {error && <p className="text-xs text-destructive">{error}</p>}
+                    </div>
+                  </div>
+                )}
+
+                {/* AVATAR MODE — original UI */}
+                {genMode === "avatar" && (
+                  <>
                 {/* TEMPLATE */}
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground">
