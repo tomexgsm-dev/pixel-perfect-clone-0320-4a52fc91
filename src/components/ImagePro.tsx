@@ -167,6 +167,17 @@ export default function ImagePro() {
         mixValue
       );
       setImageUrl(url);
+
+      // Save blended image to gallery
+      try {
+        const blob = await fetch(url).then((r) => r.blob());
+        const file = new File([blob], "blend-pro.jpg", { type: blob.type || "image/jpeg" });
+        await saveImageToGallery(file, prompt || "Blend PRO");
+        const data = await getGallery();
+        setGallery(data);
+      } catch (err) {
+        console.error("Gallery save failed", err);
+      }
     } catch (e: any) {
       setError(e?.message || "Blend PRO failed");
     } finally {
