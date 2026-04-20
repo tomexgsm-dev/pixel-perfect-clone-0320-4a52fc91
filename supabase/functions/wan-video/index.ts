@@ -25,11 +25,69 @@ serve(async (req) => {
       );
     }
 
-    const imageData = {
-      path: null,
-      url: image,
-      meta: { _type: "gradio.FileData" },
-    };
+    const HF_KEY = Deno.env.get("HF_KEY");
+    const authHeaders: Record<string, string> = HF_KEY
+      ? { Authorization: `Bearer ${HF_KEY}` }
+      : {};
+
+    // If image is a data URI, upload it to Gradio first to get a server-side path.
+    // Gradio rejects large base64 payloads passed inline as `url`.
+    let imageData: Record<string, unknown>;
+    if (typeof image === "string" && image.startsWith("data:")) {
+      const match = image.match(/^data:(.+?);base64,(.*)$/);
+      if (!match) {
+        return new Response(
+          JSON.stringify({ error: "Invalid data URI format" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const mime = match[1];
+      const b64 = match[2];
+      const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
+      const filename = `input_${Date.now()}.${ext}`;
+      const blob = new Blob([bin], { type: mime });
+
+      const form = new FormData();
+      form.append("files", blob, filename);
+
+      console.log(`Uploading image to Gradio (${(bin.length / 1024).toFixed(1)} KB, ${mime})...`);
+      const upRes = await fetch(`${HF_SPACE}/gradio_api/upload`, {
+        method: "POST",
+        headers: authHeaders,
+        body: form,
+        signal: AbortSignal.timeout(60000),
+      });
+
+      if (!upRes.ok) {
+        const t = await upRes.text();
+        console.error("Gradio upload failed:", upRes.status, t.slice(0, 300));
+        return new Response(
+          JSON.stringify({ error: `Image upload failed: ${upRes.status}`, details: t.slice(0, 300) }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const uploaded = await upRes.json();
+      const serverPath = Array.isArray(uploaded) ? uploaded[0] : uploaded;
+      console.log("Uploaded to Gradio path:", serverPath);
+
+      imageData = {
+        path: serverPath,
+        url: `${HF_SPACE}/gradio_api/file=${serverPath}`,
+        orig_name: filename,
+        size: bin.length,
+        mime_type: mime,
+        meta: { _type: "gradio.FileData" },
+      };
+    } else {
+      // Already a public URL
+      imageData = {
+        path: null,
+        url: image,
+        meta: { _type: "gradio.FileData" },
+      };
+    }
 
     // Snap fps to allowed enum values [16, 32, 64, 128]
     const requestedFps = typeof fps === "number" ? fps : 16;
