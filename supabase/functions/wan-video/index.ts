@@ -130,14 +130,17 @@ serve(async (req) => {
       }
     }
 
-    // Detect error event
+    // Detect error event from Gradio SSE
     if (!completeData) {
       for (let i = 0; i < lines.length; i++) {
         if (lines[i].startsWith("event: error") || lines[i].startsWith("event:error")) {
           console.error("Gradio returned error event. Full SSE:", sseText.slice(0, 1500));
           return new Response(
-            JSON.stringify({ error: "Wan 2.2 generation failed (Space returned error event)", debug: sseText.slice(0, 800) }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            JSON.stringify({
+              error: "Wan 2.2 odrzucił żądanie. Możliwe przyczyny: obraz za duży lub z metadanymi C2PA/watermark, kolejka GPU przeciążona, lub limit ZeroGPU. Spróbuj ponownie za chwilę z innym obrazem.",
+              debug: sseText.slice(0, 800),
+            }),
+            { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
       }

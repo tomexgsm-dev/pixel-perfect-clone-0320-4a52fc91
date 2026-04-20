@@ -242,16 +242,58 @@ export default function VideoPro() {
     }
   }
 
+  /* Resize + reencode image to clean JPEG (max 1024px, q=0.85).
+     Strips C2PA/EXIF metadata and shrinks payload — Wan 2.2 Space rejects
+     large or watermarked inputs with "event: error". */
+  async function preprocessImage(file: File): Promise<string> {
+    const dataUrl: string = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result as string);
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = dataUrl;
+    });
+
+    const MAX = 1024;
+    let { width: w, height: h } = img;
+    if (w > MAX || h > MAX) {
+      const scale = MAX / Math.max(w, h);
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas 2D context unavailable");
+    // White background — usuwa alphę (Wan nie lubi PNG z przezroczystością)
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL("image/jpeg", 0.85);
+  }
+
   /* handle image upload for I2V */
-  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setInputImageName(file.name);
-    const reader = new FileReader();
-    reader.onload = () => {
-      setInputImage(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const cleaned = await preprocessImage(file);
+      setInputImage(cleaned);
+    } catch (err) {
+      console.error("Image preprocess failed, falling back to raw upload", err);
+      const reader = new FileReader();
+      reader.onload = () => setInputImage(reader.result as string);
+      reader.readAsDataURL(file);
+    }
   }
 
   /* generate I2V via Wan 2.2 */
