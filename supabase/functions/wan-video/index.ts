@@ -7,31 +7,11 @@ const corsHeaders = {
 };
 
 const HF_SPACE = "https://webnowa-wan2-2-fp8da-aoti-preview2.hf.space";
+const ALLOWED_FPS = [16, 32, 64, 128];
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
-  }
-
-  // Diagnostic endpoint to verify HF_KEY validity from runtime secrets
-  const url = new URL(req.url);
-  if (url.searchParams.get("debug") === "1") {
-    const HF_KEY = Deno.env.get("HF_KEY");
-    if (!HF_KEY) {
-      return new Response(JSON.stringify({ ok: false, reason: "HF_KEY not set in runtime" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-    const who = await fetch("https://huggingface.co/api/whoami-v2", {
-      headers: { Authorization: `Bearer ${HF_KEY}` },
-    });
-    const whoText = await who.text();
-    return new Response(JSON.stringify({
-      ok: who.ok,
-      status: who.status,
-      key_len: HF_KEY.length,
-      key_prefix: HF_KEY.slice(0, 4),
-      whoami: whoText.slice(0, 600),
-    }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
   try {
@@ -45,36 +25,42 @@ serve(async (req) => {
       );
     }
 
-    const imageData: Record<string, unknown> = {
+    const imageData = {
+      path: null,
       url: image,
       meta: { _type: "gradio.FileData" },
     };
 
+    // Snap fps to allowed enum values [16, 32, 64, 128]
+    const requestedFps = typeof fps === "number" ? fps : 16;
+    const frameMultiplier = ALLOWED_FPS.reduce((prev, curr) =>
+      Math.abs(curr - requestedFps) < Math.abs(prev - requestedFps) ? curr : prev
+    );
+
     // Gradio /call API expects parameters as a positional array (data)
     const payload = {
       data: [
-        imageData,                                                                      // input_image
-        imageData,                                                                      // last_image (use same image)
-        prompt || "make this image come alive, cinematic motion, smooth animation",     // prompt
-        6,                                                                              // steps
-        "blurry, low quality, distorted, ugly, deformed",                               // negative_prompt
-        typeof duration === "number" ? Math.min(Math.max(duration, 0.5), 10) : 3.5,     // duration_seconds
-        1,                                                                              // guidance_scale
-        1,                                                                              // guidance_scale_2
-        0,                                                                              // seed
-        true,                                                                           // randomize_seed
-        5,                                                                              // quality
-        "FlowMatchEulerDiscrete",                                                       // scheduler
-        7.0,                                                                            // flow_shift
-        typeof fps === "number" ? String(fps) : "16",                                   // frame_multiplier
-        safe_mode ?? false,                                                             // safe_mode
-        true,                                                                           // video_component
+        imageData,                                                                      // 0  input_image
+        null,                                                                           // 1  last_image (optional)
+        prompt || "make this image come alive, cinematic motion, smooth animation",     // 2  prompt
+        6,                                                                              // 3  steps
+        "blurry, low quality, distorted, ugly, deformed",                               // 4  negative_prompt
+        typeof duration === "number" ? Math.min(Math.max(duration, 0.5), 10) : 3.5,     // 5  duration_seconds
+        1,                                                                              // 6  guidance_scale
+        1,                                                                              // 7  guidance_scale_2
+        42,                                                                             // 8  seed
+        true,                                                                           // 9  randomize_seed
+        6,                                                                              // 10 quality
+        "UniPCMultistep",                                                               // 11 scheduler
+        3.0,                                                                            // 12 flow_shift
+        frameMultiplier,                                                                // 13 frame_multiplier (must be number from enum)
+        safe_mode ?? false,                                                             // 14 safe_mode
+        true,                                                                           // 15 video_component
       ],
     };
 
-    console.log("Calling Wan 2.2 I2V (step 1: submit job)...");
+    console.log("Calling Wan 2.2 I2V — submit job...");
 
-    // ZeroGPU spaces require HF token with quota
     const HF_KEY = Deno.env.get("HF_KEY");
     const authHeaders: Record<string, string> = HF_KEY
       ? { Authorization: `Bearer ${HF_KEY}` }
@@ -113,7 +99,7 @@ serve(async (req) => {
     const resultRes = await fetch(`${HF_SPACE}/gradio_api/call/generate_video/${eventId}`, {
       method: "GET",
       headers: authHeaders,
-      signal: AbortSignal.timeout(300000), // 5 min for video gen
+      signal: AbortSignal.timeout(300000),
     });
 
     if (!resultRes.ok) {
@@ -125,24 +111,18 @@ serve(async (req) => {
       );
     }
 
-    // Parse SSE stream
     const sseText = await resultRes.text();
-    console.log("SSE response (first 500 chars):", sseText.slice(0, 500));
+    console.log("SSE response (first 300 chars):", sseText.slice(0, 300));
 
-    // SSE format: lines starting with "event:" and "data:"
+    // Parse SSE: find event: complete, then read its data line
     let videoUrl: string | null = null;
+    let completeData = "";
     const lines = sseText.split("\n");
-    let lastDataLine = "";
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.startsWith("data:")) {
-        lastDataLine = line.slice(5).trim();
-      }
-      if (line.startsWith("event: complete") || line.startsWith("event:complete")) {
-        // next data: line is the result
+      if (lines[i].startsWith("event: complete") || lines[i].startsWith("event:complete")) {
         for (let j = i + 1; j < lines.length; j++) {
           if (lines[j].startsWith("data:")) {
-            lastDataLine = lines[j].slice(5).trim();
+            completeData = lines[j].slice(5).trim();
             break;
           }
         }
@@ -150,23 +130,33 @@ serve(async (req) => {
       }
     }
 
-    if (lastDataLine) {
+    // Detect error event
+    if (!completeData) {
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith("event: error") || lines[i].startsWith("event:error")) {
+          console.error("Gradio returned error event. Full SSE:", sseText.slice(0, 1500));
+          return new Response(
+            JSON.stringify({ error: "Wan 2.2 generation failed (Space returned error event)", debug: sseText.slice(0, 800) }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+    }
+
+    if (completeData) {
       try {
-        const parsed = JSON.parse(lastDataLine);
-        // Result is array: [video_obj, download_obj, seed]
+        const parsed = JSON.parse(completeData);
         const arr = Array.isArray(parsed) ? parsed : [parsed];
         const videoObj = arr[0];
         if (videoObj?.url) {
-          videoUrl = videoObj.url.startsWith("http") ? videoObj.url : `${HF_SPACE}/gradio_api/file=${videoObj.url}`;
+          videoUrl = videoObj.url.startsWith("http")
+            ? videoObj.url
+            : `${HF_SPACE}/gradio_api/file=${videoObj.url}`;
         } else if (videoObj?.path) {
           videoUrl = `${HF_SPACE}/gradio_api/file=${videoObj.path}`;
-        } else if (videoObj?.video?.url) {
-          videoUrl = videoObj.video.url;
-        } else if (videoObj?.video?.path) {
-          videoUrl = `${HF_SPACE}/gradio_api/file=${videoObj.video.path}`;
         }
       } catch (e) {
-        console.error("Failed to parse SSE data line:", e, lastDataLine.slice(0, 200));
+        console.error("Failed to parse SSE complete data:", e, completeData.slice(0, 200));
       }
     }
 
