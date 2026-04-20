@@ -77,8 +77,42 @@ export async function promptAI(prompt: string) {
 }
 
 /* ============================================================
-   BLEND PRO — /blend-pro
+   BLEND PRO — Supabase Edge Function (Lovable AI / Gemini Flash Image)
 ============================================================ */
+
+async function fileToDataUri(file: File): Promise<string> {
+  // Resize to max 1024px and convert to JPEG to keep payload small and strip metadata
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1024;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        const ratio = Math.min(MAX / width, MAX / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("Canvas not supported"));
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", 0.9));
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
 
 export async function blendPro(
   image1: File,
@@ -86,25 +120,36 @@ export async function blendPro(
   prompt: string,
   mix: number = 0.5
 ) {
-  const baseUrl = import.meta.env.VITE_NEXUS_IMAGE_API;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-  const form = new FormData();
-  form.append("image1", image1);
-  form.append("image2", image2);
-  form.append("prompt", prompt);
-  form.append("mix", mix.toString());
+  const [img1, img2] = await Promise.all([
+    fileToDataUri(image1),
+    fileToDataUri(image2),
+  ]);
 
-  const res = await fetch(`${baseUrl}/blend-pro`, {
+  const res = await fetch(`${supabaseUrl}/functions/v1/blend-pro`, {
     method: "POST",
-    body: form,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${anonKey}`,
+      apikey: anonKey,
+    },
+    body: JSON.stringify({ image1: img1, image2: img2, prompt, mix }),
   });
 
   if (!res.ok) {
     const text = await res.text();
     console.error("Blend PRO error:", res.status, text);
-    throw new Error("Blend PRO failed");
+    let msg = "Blend PRO failed";
+    try {
+      const j = JSON.parse(text);
+      if (j?.error) msg = j.error;
+    } catch {}
+    throw new Error(msg);
   }
 
-  const blob = await res.blob();
-  return URL.createObjectURL(blob);
+  const data = await res.json();
+  if (!data?.image_url) throw new Error("No image returned");
+  return data.image_url as string;
 }
