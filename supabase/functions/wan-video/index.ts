@@ -29,69 +29,123 @@ serve(async (req) => {
       meta: { _type: "gradio.FileData" },
     };
 
+    // Gradio /call API expects parameters as a positional array (data)
     const payload = {
-      input_image: imageData,
-      last_image: imageData,
-      prompt: prompt || "make this image come alive, cinematic motion, smooth animation",
-      steps: 6,
-      negative_prompt: "blurry, low quality, distorted",
-      duration_seconds: typeof duration === "number" ? Math.min(Math.max(duration, 0.5), 10) : 3.5,
-      guidance_scale: 1.0,
-      guidance_scale_2: 1.0,
-      seed: 0,
-      randomize_seed: true,
-      quality: 5,
-      scheduler: "FlowMatchEulerDiscrete",
-      flow_shift: 7.0,
-      frame_multiplier: typeof fps === "number" ? String(fps) : "16",
-      safe_mode: safe_mode ?? false,
-      video_component: true,
+      data: [
+        imageData,                                                                      // input_image
+        imageData,                                                                      // last_image (use same image)
+        prompt || "make this image come alive, cinematic motion, smooth animation",     // prompt
+        6,                                                                              // steps
+        "blurry, low quality, distorted, ugly, deformed",                               // negative_prompt
+        typeof duration === "number" ? Math.min(Math.max(duration, 0.5), 10) : 3.5,     // duration_seconds
+        1,                                                                              // guidance_scale
+        1,                                                                              // guidance_scale_2
+        0,                                                                              // seed
+        true,                                                                           // randomize_seed
+        5,                                                                              // quality
+        "FlowMatchEulerDiscrete",                                                       // scheduler
+        7.0,                                                                            // flow_shift
+        typeof fps === "number" ? String(fps) : "16",                                   // frame_multiplier
+        safe_mode ?? false,                                                             // safe_mode
+        true,                                                                           // video_component
+      ],
     };
 
-    console.log("Calling Wan 2.2 I2V...");
+    console.log("Calling Wan 2.2 I2V (step 1: submit job)...");
 
-    const res = await fetch(`${HF_SPACE}/gradio_api/run/generate_video`, {
+    // Step 1: Submit job, receive event_id
+    const submitRes = await fetch(`${HF_SPACE}/gradio_api/call/generate_video`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(300000), // 5 min for video gen
+      signal: AbortSignal.timeout(60000),
     });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error("Wan API error:", res.status, errText);
+    if (!submitRes.ok) {
+      const errText = await submitRes.text();
+      console.error("Wan submit error:", submitRes.status, errText.slice(0, 500));
       return new Response(
-        JSON.stringify({ error: `Video generation failed: ${res.status}`, details: errText }),
+        JSON.stringify({ error: `Submit failed: ${submitRes.status}`, details: errText.slice(0, 500) }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const data = await res.json();
-    console.log("Wan response keys:", Object.keys(data));
-
-    // Extract video URL from Gradio response
-    let videoUrl: string | null = null;
-
-    // output or output_1 contains the video file
-    const output = data?.output ?? data?.output_1;
-    if (output?.url) {
-      videoUrl = output.url.startsWith("http") ? output.url : `${HF_SPACE}/gradio_api/file=${output.url}`;
-    } else if (output?.path) {
-      videoUrl = `${HF_SPACE}/gradio_api/file=${output.path}`;
+    const submitData = await submitRes.json();
+    const eventId = submitData?.event_id;
+    if (!eventId) {
+      console.error("No event_id from submit:", submitData);
+      return new Response(
+        JSON.stringify({ error: "No event_id received from Wan API" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // Also check data array format (older Gradio)
-    if (!videoUrl && Array.isArray(data?.data)) {
-      const first = data.data[0];
-      if (typeof first === "string") videoUrl = first;
-      else if (first?.url) videoUrl = first.url;
-      else if (first?.path) videoUrl = `${HF_SPACE}/gradio_api/file=${first.path}`;
+    console.log("Got event_id:", eventId, "— polling SSE for result...");
+
+    // Step 2: Poll SSE stream for completion
+    const resultRes = await fetch(`${HF_SPACE}/gradio_api/call/generate_video/${eventId}`, {
+      method: "GET",
+      signal: AbortSignal.timeout(300000), // 5 min for video gen
+    });
+
+    if (!resultRes.ok) {
+      const errText = await resultRes.text();
+      console.error("Wan SSE error:", resultRes.status, errText.slice(0, 500));
+      return new Response(
+        JSON.stringify({ error: `Video generation failed: ${resultRes.status}`, details: errText.slice(0, 500) }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Parse SSE stream
+    const sseText = await resultRes.text();
+    console.log("SSE response (first 500 chars):", sseText.slice(0, 500));
+
+    // SSE format: lines starting with "event:" and "data:"
+    let videoUrl: string | null = null;
+    const lines = sseText.split("\n");
+    let lastDataLine = "";
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.startsWith("data:")) {
+        lastDataLine = line.slice(5).trim();
+      }
+      if (line.startsWith("event: complete") || line.startsWith("event:complete")) {
+        // next data: line is the result
+        for (let j = i + 1; j < lines.length; j++) {
+          if (lines[j].startsWith("data:")) {
+            lastDataLine = lines[j].slice(5).trim();
+            break;
+          }
+        }
+        break;
+      }
+    }
+
+    if (lastDataLine) {
+      try {
+        const parsed = JSON.parse(lastDataLine);
+        // Result is array: [video_obj, download_obj, seed]
+        const arr = Array.isArray(parsed) ? parsed : [parsed];
+        const videoObj = arr[0];
+        if (videoObj?.url) {
+          videoUrl = videoObj.url.startsWith("http") ? videoObj.url : `${HF_SPACE}/gradio_api/file=${videoObj.url}`;
+        } else if (videoObj?.path) {
+          videoUrl = `${HF_SPACE}/gradio_api/file=${videoObj.path}`;
+        } else if (videoObj?.video?.url) {
+          videoUrl = videoObj.video.url;
+        } else if (videoObj?.video?.path) {
+          videoUrl = `${HF_SPACE}/gradio_api/file=${videoObj.video.path}`;
+        }
+      } catch (e) {
+        console.error("Failed to parse SSE data line:", e, lastDataLine.slice(0, 200));
+      }
     }
 
     if (!videoUrl) {
-      console.error("No video URL in response:", JSON.stringify(data).slice(0, 500));
+      console.error("No video URL extracted. Full SSE:", sseText.slice(0, 2000));
       return new Response(
-        JSON.stringify({ error: "No video URL in response" }),
+        JSON.stringify({ error: "No video URL in response", debug: sseText.slice(0, 1000) }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
