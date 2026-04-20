@@ -21,6 +21,7 @@ import {
   getVideoGallery,
   deleteVideo,
 } from "@/lib/api/video";
+import { VideoProgress } from "@/components/VideoProgress";
 
 /* ------------------------------------------------
    TYPES
@@ -572,6 +573,12 @@ export default function VideoPro() {
                       </button>
                       {error && <p className="text-xs text-destructive">{error}</p>}
                     </div>
+
+                    {/* Pasek postępu generowania I2V */}
+                    <VideoProgress
+                      isGenerating={isGenerating && genMode === "i2v"}
+                      estimatedSeconds={Math.max(60, Math.min(120, 30 + i2vDuration * 18))}
+                    />
                   </div>
                 )}
 
