@@ -13,6 +13,27 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Diagnostic endpoint to verify HF_KEY validity from runtime secrets
+  const url = new URL(req.url);
+  if (url.searchParams.get("debug") === "1") {
+    const HF_KEY = Deno.env.get("HF_KEY");
+    if (!HF_KEY) {
+      return new Response(JSON.stringify({ ok: false, reason: "HF_KEY not set in runtime" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const who = await fetch("https://huggingface.co/api/whoami-v2", {
+      headers: { Authorization: `Bearer ${HF_KEY}` },
+    });
+    const whoText = await who.text();
+    return new Response(JSON.stringify({
+      ok: who.ok,
+      status: who.status,
+      key_len: HF_KEY.length,
+      key_prefix: HF_KEY.slice(0, 4),
+      whoami: whoText.slice(0, 600),
+    }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+
   try {
     const body = await req.json();
     const { image, prompt, duration, fps, safe_mode } = body;
