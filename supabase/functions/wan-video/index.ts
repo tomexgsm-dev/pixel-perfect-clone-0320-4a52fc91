@@ -6,7 +6,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const HF_SPACE = "https://webnova-wan2-2-fp8da-aoti-preview2.hf.space";
+const HF_SPACE = "https://webnowa-wan2-2-fp8da-aoti-preview2.hf.space";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
