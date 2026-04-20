@@ -119,10 +119,7 @@ serve(async (req) => {
 
     console.log("Calling Wan 2.2 I2V — submit job...");
 
-    const HF_KEY = Deno.env.get("HF_KEY");
-    const authHeaders: Record<string, string> = HF_KEY
-      ? { Authorization: `Bearer ${HF_KEY}` }
-      : {};
+
 
     // Step 1: Submit job, receive event_id
     const submitRes = await fetch(`${HF_SPACE}/gradio_api/call/generate_video`, {
