@@ -53,10 +53,16 @@ serve(async (req) => {
 
     console.log("Calling Wan 2.2 I2V (step 1: submit job)...");
 
+    // ZeroGPU spaces require HF token with quota
+    const HF_KEY = Deno.env.get("HF_KEY");
+    const authHeaders: Record<string, string> = HF_KEY
+      ? { Authorization: `Bearer ${HF_KEY}` }
+      : {};
+
     // Step 1: Submit job, receive event_id
     const submitRes = await fetch(`${HF_SPACE}/gradio_api/call/generate_video`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(60000),
     });
@@ -85,6 +91,7 @@ serve(async (req) => {
     // Step 2: Poll SSE stream for completion
     const resultRes = await fetch(`${HF_SPACE}/gradio_api/call/generate_video/${eventId}`, {
       method: "GET",
+      headers: authHeaders,
       signal: AbortSignal.timeout(300000), // 5 min for video gen
     });
 
