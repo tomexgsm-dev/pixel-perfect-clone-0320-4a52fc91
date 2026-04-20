@@ -63,15 +63,24 @@ export async function generateImage(
 ============================================================ */
 
 export async function promptAI(prompt: string) {
-  const baseUrl = import.meta.env.VITE_NEXUS_IMAGE_API;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-  const res = await fetch(`${baseUrl}/prompt-ai`, {
+  const res = await fetch(`${supabaseUrl}/functions/v1/prompt-ai`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${anonKey}`,
+      apikey: anonKey,
+    },
     body: JSON.stringify({ prompt }),
   });
 
-  if (!res.ok) throw new Error("Prompt AI error");
+  if (!res.ok) {
+    const text = await res.text();
+    console.error("Prompt AI error:", res.status, text);
+    throw new Error("Prompt AI error");
+  }
 
   return await res.json();
 }
