@@ -536,23 +536,30 @@ function buildPrompt(
 async function generateImage(prompt: string) {
   if (cache.has(prompt)) return cache.get(prompt)!;
 
-  console.log("1) Trying primary generator...");
-  const primary = await callPrimary(prompt);
+  console.log("1) Trying primary generator (fast timeout)...");
+  const primary = await Promise.race([
+    callPrimary(prompt),
+    new Promise<null>((r) => setTimeout(() => r(null), 12000)),
+  ]);
   if (primary) { cacheSet(prompt, primary); return primary; }
 
-  console.log("2) Trying Gemini direct API...");
+  console.log("2) Trying Z-Image-Turbo (fast HF Space)...");
+  const zturbo = await callZImageTurbo(prompt);
+  if (zturbo) { cacheSet(prompt, zturbo); return zturbo; }
+
+  console.log("3) Trying Gemini direct API...");
   const gemini = await callGeminiDirect(prompt);
   if (gemini) { cacheSet(prompt, gemini); return gemini; }
 
-  console.log("3) Trying Together.xyz...");
+  console.log("4) Trying Together.xyz...");
   const together = await callTogether(prompt);
   if (together) { cacheSet(prompt, together); return together; }
 
-  console.log("4) Trying Lovable AI...");
+  console.log("5) Trying Lovable AI...");
   const lovable = await callLovable(prompt);
   if (lovable) return lovable;
 
-  console.log("5) Trying Replicate...");
+  console.log("6) Trying Replicate...");
   const rep = await callReplicate(prompt);
   if (rep) return rep;
 
