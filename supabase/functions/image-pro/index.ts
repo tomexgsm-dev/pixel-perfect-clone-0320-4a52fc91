@@ -345,6 +345,110 @@ async function callGeminiDirect(prompt: string): Promise<string | null> {
   }
 }
 
+/* ---------------- Z-IMAGE-TURBO (HuggingFace Space, ultra fast 8 steps) ---------------- */
+
+async function callZImageTurbo(prompt: string): Promise<string | null> {
+  const SPACE = "https://mrfakename-z-image-turbo.hf.space";
+  try {
+    console.log("Trying Z-Image-Turbo (mrfakename)...");
+
+    // 1) submit job
+    const submit = await fetch(`${SPACE}/gradio_api/call/generate_image`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        data: [prompt, 1024, 1024, 8, 0, true],
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!submit.ok) {
+      console.error("Z-Image-Turbo submit failed:", submit.status);
+      return null;
+    }
+
+    const { event_id } = await submit.json();
+    if (!event_id) return null;
+
+    // 2) read SSE stream
+    const stream = await fetch(
+      `${SPACE}/gradio_api/call/generate_image/${event_id}`,
+      { signal: AbortSignal.timeout(45000) },
+    );
+
+    if (!stream.ok || !stream.body) {
+      console.error("Z-Image-Turbo stream failed:", stream.status);
+      return null;
+    }
+
+    const reader = stream.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let imageUrl: string | null = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // Parse SSE blocks
+      const blocks = buffer.split("\n\n");
+      buffer = blocks.pop() || "";
+
+      for (const block of blocks) {
+        const lines = block.split("\n");
+        const eventLine = lines.find((l) => l.startsWith("event:"));
+        const dataLine = lines.find((l) => l.startsWith("data:"));
+        if (!eventLine || !dataLine) continue;
+
+        const event = eventLine.slice(6).trim();
+        const dataStr = dataLine.slice(5).trim();
+
+        if (event === "complete") {
+          try {
+            const arr = JSON.parse(dataStr);
+            const file = Array.isArray(arr) ? arr[0] : null;
+            if (file?.url) imageUrl = file.url;
+          } catch (e) {
+            console.error("Z-Image-Turbo parse error:", e);
+          }
+          break;
+        }
+
+        if (event === "error") {
+          console.error("Z-Image-Turbo error event:", dataStr);
+          return null;
+        }
+      }
+
+      if (imageUrl) break;
+    }
+
+    if (!imageUrl) {
+      console.error("Z-Image-Turbo: no image URL in stream");
+      return null;
+    }
+
+    // 3) download image and return as data URI (avoids client CORS / cold link issues)
+    const imgRes = await fetch(imageUrl, {
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!imgRes.ok) return null;
+
+    const buf = await imgRes.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let binary = "";
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    console.log("Z-Image-Turbo: image generated successfully");
+    return `data:image/png;base64,${btoa(binary)}`;
+  } catch (e) {
+    console.error("Z-Image-Turbo exception:", e);
+    return null;
+  }
+}
+
 /* ---------------- TOGETHER.XYZ ---------------- */
 
 async function callTogether(prompt: string): Promise<string | null> {
@@ -432,23 +536,30 @@ function buildPrompt(
 async function generateImage(prompt: string) {
   if (cache.has(prompt)) return cache.get(prompt)!;
 
-  console.log("1) Trying primary generator...");
-  const primary = await callPrimary(prompt);
+  console.log("1) Trying primary generator (fast timeout)...");
+  const primary = await Promise.race([
+    callPrimary(prompt),
+    new Promise<null>((r) => setTimeout(() => r(null), 12000)),
+  ]);
   if (primary) { cacheSet(prompt, primary); return primary; }
 
-  console.log("2) Trying Gemini direct API...");
+  console.log("2) Trying Z-Image-Turbo (fast HF Space)...");
+  const zturbo = await callZImageTurbo(prompt);
+  if (zturbo) { cacheSet(prompt, zturbo); return zturbo; }
+
+  console.log("3) Trying Gemini direct API...");
   const gemini = await callGeminiDirect(prompt);
   if (gemini) { cacheSet(prompt, gemini); return gemini; }
 
-  console.log("3) Trying Together.xyz...");
+  console.log("4) Trying Together.xyz...");
   const together = await callTogether(prompt);
   if (together) { cacheSet(prompt, together); return together; }
 
-  console.log("4) Trying Lovable AI...");
+  console.log("5) Trying Lovable AI...");
   const lovable = await callLovable(prompt);
   if (lovable) return lovable;
 
-  console.log("5) Trying Replicate...");
+  console.log("6) Trying Replicate...");
   const rep = await callReplicate(prompt);
   if (rep) return rep;
 
