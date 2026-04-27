@@ -28,6 +28,9 @@ const APP_DEFS: AppDef[] = [
   // 🔥 NOWA APLIKACJA: VideoPro
   { id: "video-pro", emoji: "🎬", color: "from-purple-500/20 to-fuchsia-600/20 border-purple-500/30", category: "creative" },
 
+  // 🎵 NOWA APLIKACJA: MuzykaPro
+  { id: "music-pro", emoji: "🎵", color: "from-pink-500/20 to-purple-600/20 border-pink-500/30", category: "creative" },
+
   { id: "diet", emoji: "🥗", color: "from-lime-500/20 to-green-600/20 border-lime-500/30", category: "knowledge" },
   { id: "travel", emoji: "✈️", color: "from-indigo-500/20 to-blue-600/20 border-indigo-500/30", category: "knowledge" },
   { id: "fitness", emoji: "💪", color: "from-red-500/20 to-rose-600/20 border-red-500/30", category: "knowledge" },
@@ -137,6 +140,10 @@ export default function AppsPage() {
                   onClick={() => {
                     if (app.id === "video-pro") {
                       navigate("/video-pro");
+                      return;
+                    }
+                    if (app.id === "music-pro") {
+                      navigate("/music-pro");
                       return;
                     }
                     if (app.id === "page-generator") {

@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.analyze-website]
 verify_jwt = false
+
+[functions.music-pro]
+verify_jwt = false
