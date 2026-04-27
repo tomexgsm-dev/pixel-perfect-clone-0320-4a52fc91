@@ -347,7 +347,7 @@ serve(async (req) => {
         }
       }
 
-      // Step 2: fallback na MusicGen (krótszy, bez wokalu, ale stabilny)
+      // Step 2: fallback na MusicGen (krótszy, bez wokalu, ale zwykle stabilniejszy)
       if (!recovered) {
         try {
           console.log("MusicPro: falling back to MusicGen");
@@ -360,15 +360,17 @@ serve(async (req) => {
         }
       }
 
+      // Step 3: lokalny fallback proceduralny — zawsze zwraca krótki podkład WAV zamiast 503
       if (!recovered) {
-        return new Response(
-          JSON.stringify({
-            error:
-              "Wszystkie generatory muzyki są obecnie przeciążone (ACE-Step + MusicGen). Spróbuj ponownie za 1-2 minuty.",
-            retry: true,
-          }),
-          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        console.log("MusicPro: using procedural emergency fallback");
+        const audio = callProceduralFallback(prompt, Math.min(dur, 60), tags);
+        result = {
+          audio,
+          title: "MuzykaPro Demo Mix",
+          tags: `${tags}, procedural fallback`,
+        };
+        mode = "procedural-fallback";
+        recovered = true;
       }
     }
 
