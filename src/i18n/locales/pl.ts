@@ -164,6 +164,13 @@ export const pl = {
         systemPrompt: "Jesteś generatorem wideo VideoPro.",
       },
 
+      // 🎵 MUZYKA-PRO
+      "music-pro": {
+        name: "MuzykaPro",
+        description: "Generuj muzykę AI z opisu tekstowego.",
+        systemPrompt: "Jesteś generatorem muzyki MuzykaPro.",
+      },
+
       diet: {
         name: "Dietetyk",
         description: "Plany żywieniowe i przepisy",

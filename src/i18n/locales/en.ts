@@ -162,6 +162,13 @@ export const en = {
         systemPrompt: "You are VideoPro AI generator.",
       },
 
+      // 🎵 MUSIC-PRO
+      "music-pro": {
+        name: "MusicPro",
+        description: "Generate AI music from text descriptions.",
+        systemPrompt: "You are MusicPro AI generator.",
+      },
+
       diet: {
         name: "Nutritionist",
         description: "Nutrition plans and recipes",

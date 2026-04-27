@@ -18,6 +18,7 @@ import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
 
 import VideoPro from "./pages/VideoPro";
+import MusicPro from "./pages/MusicPro";
 import LeadFinderPage from "./pages/LeadFinderPage";
 
 import { Loader2 } from "lucide-react";
@@ -90,6 +91,10 @@ const App = () => (
 
                     {/* VIDEO PRO — DODANE */}
                     <Route path="/apps/video-pro" element={<VideoPro />} />
+
+                    {/* MUSIC PRO */}
+                    <Route path="/apps/music-pro" element={<MusicPro />} />
+                    <Route path="/music-pro" element={<MusicPro />} />
 
                     {/* IMAGE GENERATOR */}
                     <Route path="/images" element={<ImagesPage />} />
