@@ -7,6 +7,63 @@ const corsHeaders = {
 };
 
 const HF_SPACE_BASE = "https://victor-ace-step-jam.hf.space";
+const FALLBACK_SPACE = "https://facebook-musicgen.hf.space";
+
+async function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// Fallback: facebook MusicGen (instrumental, brak wokalu, ale stabilny)
+async function callMusicGenFallback(prompt: string, duration: number): Promise<string> {
+  const initRes = await fetch(`${FALLBACK_SPACE}/gradio_api/call/predict`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      data: [prompt.slice(0, 500), null, "small", Math.min(duration, 30)],
+    }),
+  });
+  if (!initRes.ok) throw new Error(`MusicGen init ${initRes.status}`);
+  const { event_id } = await initRes.json();
+  if (!event_id) throw new Error("No MusicGen event_id");
+
+  const streamRes = await fetch(`${FALLBACK_SPACE}/gradio_api/call/predict/${event_id}`);
+  const reader = streamRes.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let audioUrl: string | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || "";
+    for (const ev of events) {
+      const eventType = ev.match(/event:\s*(\S+)/)?.[1];
+      const dataLine = ev.match(/data:\s*(.+)/)?.[1];
+      if (eventType === "complete" && dataLine) {
+        try {
+          const parsed = JSON.parse(dataLine);
+          const item = Array.isArray(parsed) ? parsed[0] : parsed;
+          if (item?.url) audioUrl = item.url;
+          else if (item?.path) audioUrl = `${FALLBACK_SPACE}/gradio_api/file=${item.path}`;
+          else if (typeof item === "string") audioUrl = item;
+        } catch {}
+      }
+      if (eventType === "error") throw new Error("MusicGen error event");
+    }
+    if (audioUrl) break;
+  }
+  if (!audioUrl) throw new Error("MusicGen no audio");
+
+  // Pobierz i zwróć jako base64 data URL
+  const audioRes = await fetch(audioUrl);
+  const buf = await audioRes.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return `data:audio/wav;base64,${btoa(binary)}`;
+}
 
 // Detekcja czy prompt zawiera lyrics
 function looksLikeLyrics(text: string): boolean {
@@ -169,27 +226,44 @@ serve(async (req) => {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`MusicPro primary failed: ${msg}`);
 
-      // Jeśli /create rzucił SPACE_ERROR — spróbuj /generate jako fallback
-      if (msg.startsWith("SPACE_ERROR:create") || msg.includes("create")) {
-        console.log("MusicPro: fallback to /generate with auto tags");
-        const r = await gradioCall("generate", [
-          "pop, melodic, emotional, vocal",
-          prompt.slice(0, 1500),
-          dur,
-          27,
-          7.0,
-          -1,
-          "",
-          0.8,
-        ]);
-        result = { audio: r.result.audio || r.result };
-        mode = "generate-fallback";
-      } else {
-        // Zwróć user-friendly error 200 (frontend obsługuje msg)
+      // Step 1: retry /generate z auto-tagami i backoffem (max 2 próby)
+      let recovered = false;
+      const { tags, lyrics } = hasLyrics
+        ? splitPromptAndLyrics(prompt)
+        : { tags: "pop, melodic, emotional, vocal", lyrics: prompt.slice(0, 1500) };
+
+      for (let attempt = 0; attempt < 2 && !recovered; attempt++) {
+        try {
+          const wait = (attempt + 1) * 3000;
+          console.log(`MusicPro: retry /generate attempt=${attempt + 1} after ${wait}ms`);
+          await sleep(wait);
+          const r = await gradioCall("generate", [tags, lyrics, dur, 27, 7.0, -1, "", 0.8]);
+          result = { audio: r.result.audio || r.result, tags, lyrics };
+          mode = `generate-retry${attempt + 1}`;
+          recovered = true;
+        } catch (e) {
+          console.error(`MusicPro retry ${attempt + 1} failed:`, e);
+        }
+      }
+
+      // Step 2: fallback na MusicGen (krótszy, bez wokalu, ale stabilny)
+      if (!recovered) {
+        try {
+          console.log("MusicPro: falling back to MusicGen");
+          const audio = await callMusicGenFallback(tags + " " + prompt.slice(0, 200), dur);
+          result = { audio, tags };
+          mode = "musicgen-fallback";
+          recovered = true;
+        } catch (e) {
+          console.error("MusicGen fallback failed:", e);
+        }
+      }
+
+      if (!recovered) {
         return new Response(
           JSON.stringify({
             error:
-              "ACE-Step Space jest przeciążony lub odrzucił żądanie (ZeroGPU queue / błąd kompozycji). Spróbuj ponownie za chwilę lub użyj krótszego opisu.",
+              "Wszystkie generatory muzyki są obecnie przeciążone (ACE-Step + MusicGen). Spróbuj ponownie za 1-2 minuty.",
             retry: true,
           }),
           { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
