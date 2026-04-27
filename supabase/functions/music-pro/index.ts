@@ -8,9 +8,110 @@ const corsHeaders = {
 
 const HF_SPACE_BASE = "https://victor-ace-step-jam.hf.space";
 const FALLBACK_SPACE = "https://facebook-musicgen.hf.space";
+const PROCEDURAL_SAMPLE_RATE = 16_000;
 
 async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function hashString(input: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function midiToHz(note: number): number {
+  return 440 * Math.pow(2, (note - 69) / 12);
+}
+
+function encodeWavDataUrl(samples: Float32Array, sampleRate = PROCEDURAL_SAMPLE_RATE): string {
+  const dataSize = samples.length * 2;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  const writeString = (offset: number, value: string) => {
+    for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i));
+  };
+
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, "data");
+  view.setUint32(40, dataSize, true);
+
+  let offset = 44;
+  for (const sample of samples) {
+    const s = Math.max(-1, Math.min(1, sample));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    offset += 2;
+  }
+
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return `data:audio/wav;base64,${btoa(binary)}`;
+}
+
+function callProceduralFallback(prompt: string, duration: number, tags = ""): string {
+  const text = `${prompt} ${tags}`.toLowerCase();
+  const seed = hashString(text || "muzykapro");
+  const isMinor = /dark|sad|melanchol|metal|trap|cinematic|dramatic|mrocz|smut/i.test(text);
+  const isFast = /edm|techno|house|club|dance|metal|punk|fast|szybk/i.test(text);
+  const isChill = /lo-?fi|chill|ambient|study|relax|soft|spokoj/i.test(text);
+  const bpm = isFast ? 132 + (seed % 18) : isChill ? 72 + (seed % 18) : 92 + (seed % 28);
+  const root = 45 + (seed % 12);
+  const scale = isMinor ? [0, 2, 3, 5, 7, 8, 10] : [0, 2, 4, 5, 7, 9, 11];
+  const progression = isMinor ? [0, 5, 3, 6] : [0, 4, 5, 3];
+  const totalSamples = Math.floor(duration * PROCEDURAL_SAMPLE_RATE);
+  const samples = new Float32Array(totalSamples);
+
+  for (let i = 0; i < totalSamples; i++) {
+    const t = i / PROCEDURAL_SAMPLE_RATE;
+    const beat = (t * bpm) / 60;
+    const beatPos = beat % 1;
+    const beatInBar = Math.floor(beat) % 4;
+    const bar = Math.floor(beat / 4);
+    const chordDegree = progression[bar % progression.length];
+    const bassNote = root + scale[chordDegree % scale.length] - 12;
+    const chordNotes = [0, 2, 4].map((step) => root + 12 + scale[(chordDegree + step) % scale.length]);
+    const arpNote = root + 24 + scale[(bar + Math.floor(beat * 2) + (seed % 5)) % scale.length];
+
+    const bassEnv = Math.exp(-beatPos * 2.8);
+    const padEnv = 0.45 + 0.25 * Math.sin(t * 0.35);
+    const arpEnv = Math.exp(-((beat * 2) % 1) * 4.5);
+    const bass = Math.sin(2 * Math.PI * midiToHz(bassNote) * t) * 0.28 * bassEnv;
+    const pad = chordNotes.reduce((sum, note, idx) => {
+      return sum + Math.sin(2 * Math.PI * midiToHz(note) * t + idx * 0.7) * 0.055 * padEnv;
+    }, 0);
+    const lead = Math.sin(2 * Math.PI * midiToHz(arpNote) * t) * 0.12 * arpEnv;
+
+    const kick = beatPos < 0.16
+      ? Math.sin(2 * Math.PI * (52 + 95 * Math.exp(-beatPos * 28)) * t) * Math.exp(-beatPos * 22) * 0.52
+      : 0;
+    const snarePos = beatInBar === 1 || beatInBar === 3 ? beatPos : 1;
+    const noise = ((Math.sin((i + seed) * 12.9898) * 43758.5453) % 1) * 2 - 1;
+    const snare = snarePos < 0.11 ? noise * Math.exp(-snarePos * 34) * 0.16 : 0;
+    const hatPos = (beat * 2) % 1;
+    const hat = hatPos < 0.035 ? noise * Math.exp(-hatPos * 90) * 0.055 : 0;
+    const fade = Math.min(1, t / 1.5, (duration - t) / 2);
+
+    samples[i] = (bass + pad + lead + kick + snare + hat) * Math.max(0, fade) * 0.72;
+  }
+
+  return encodeWavDataUrl(samples);
 }
 
 // Fallback: facebook MusicGen (instrumental, brak wokalu, ale stabilny)
