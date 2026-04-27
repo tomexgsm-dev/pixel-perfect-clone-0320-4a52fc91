@@ -6,34 +6,40 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// HuggingFace Space - facebook MusicGen (darmowy generator muzyki)
-const HF_SPACE_BASE = "https://facebook-musicgen.hf.space";
+// HuggingFace Space - ACE-Step Jam (do 2 min, wysoka jakość, z wokalem)
+const HF_SPACE_BASE = "https://victor-ace-step-jam.hf.space";
 
-async function callMusicGen(prompt: string, duration: number): Promise<string> {
-  // 1. POST do Gradio API → otrzymujemy event_id
-  const initRes = await fetch(`${HF_SPACE_BASE}/gradio_api/call/predict`, {
+async function callAceStep(
+  description: string,
+  duration: number
+): Promise<{ audio: string; title?: string; tags?: string; lyrics?: string }> {
+  // 1. POST → event_id
+  const initRes = await fetch(`${HF_SPACE_BASE}/gradio_api/call/create`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      data: [prompt, null, "small", Math.min(Math.max(duration, 5), 30)],
+      data: [description, duration, -1, false], // description, audio_duration, seed, community
     }),
   });
 
   if (!initRes.ok) {
-    throw new Error(`MusicGen init failed: ${initRes.status}`);
+    const t = await initRes.text();
+    throw new Error(`ACE-Step init failed [${initRes.status}]: ${t.slice(0, 200)}`);
   }
 
-  const { event_id } = await initRes.json();
-  if (!event_id) throw new Error("No event_id from MusicGen");
+  const initJson = await initRes.json();
+  const event_id = initJson?.event_id;
+  if (!event_id) throw new Error("No event_id from ACE-Step");
 
-  // 2. GET SSE stream → szukamy 'complete'
-  const streamRes = await fetch(`${HF_SPACE_BASE}/gradio_api/call/predict/${event_id}`);
+  // 2. GET SSE stream
+  const streamRes = await fetch(`${HF_SPACE_BASE}/gradio_api/call/create/${event_id}`);
   if (!streamRes.body) throw new Error("No stream body");
 
   const reader = streamRes.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  let audioUrl: string | null = null;
+  let result: any = null;
+  let debug = "";
 
   while (true) {
     const { done, value } = await reader.read();
@@ -44,6 +50,7 @@ async function callMusicGen(prompt: string, duration: number): Promise<string> {
     buffer = events.pop() || "";
 
     for (const ev of events) {
+      debug += ev + "\n\n";
       const lines = ev.split("\n");
       const eventType = lines.find((l) => l.startsWith("event:"))?.slice(6).trim();
       const dataLine = lines.find((l) => l.startsWith("data:"))?.slice(5).trim();
@@ -51,39 +58,35 @@ async function callMusicGen(prompt: string, duration: number): Promise<string> {
       if (eventType === "complete" && dataLine) {
         try {
           const parsed = JSON.parse(dataLine);
-          // MusicGen zwraca obiekt z polem 'url' lub 'path'
+          // /create zwraca JSON-string w pierwszym elemencie tablicy
           const item = Array.isArray(parsed) ? parsed[0] : parsed;
-          if (item?.url) audioUrl = item.url;
-          else if (item?.path) audioUrl = `${HF_SPACE_BASE}/gradio_api/file=${item.path}`;
-          else if (typeof item === "string") audioUrl = item;
-        } catch (_) {
-          // ignoruj błąd parsowania
+          if (typeof item === "string") {
+            try {
+              result = JSON.parse(item);
+            } catch {
+              result = { audio: item };
+            }
+          } else {
+            result = item;
+          }
+        } catch (e) {
+          console.error("Parse error:", e);
         }
       }
 
       if (eventType === "error") {
-        throw new Error("MusicGen returned error event");
+        throw new Error(`ACE-Step error event: ${debug.slice(-500)}`);
       }
     }
 
-    if (audioUrl) break;
+    if (result) break;
   }
 
-  if (!audioUrl) throw new Error("No audio URL returned from MusicGen");
-
-  // 3. Pobierz plik audio i zwróć jako base64
-  const audioRes = await fetch(audioUrl);
-  if (!audioRes.ok) throw new Error(`Failed to fetch audio: ${audioRes.status}`);
-
-  const arrayBuffer = await audioRes.arrayBuffer();
-  const bytes = new Uint8Array(arrayBuffer);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  if (!result?.audio) {
+    throw new Error(`No audio in result. Debug: ${debug.slice(-500)}`);
   }
-  const base64 = btoa(binary);
 
-  return `data:audio/wav;base64,${base64}`;
+  return result;
 }
 
 serve(async (req) => {
@@ -92,7 +95,7 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, duration = 10 } = await req.json();
+    const { prompt, duration = 60 } = await req.json();
 
     if (!prompt || typeof prompt !== "string") {
       return new Response(
@@ -101,14 +104,23 @@ serve(async (req) => {
       );
     }
 
-    console.log(`MusicPro: generating music for prompt="${prompt}" duration=${duration}s`);
+    // Limit: 10s - 120s (2 min max - limit ACE-Step Jam)
+    const dur = Math.min(Math.max(Number(duration) || 60, 10), 120);
 
-    const audio = await callMusicGen(prompt, Number(duration) || 10);
+    console.log(`MusicPro: ACE-Step generating prompt="${prompt}" duration=${dur}s`);
 
-    console.log("MusicPro: generation successful");
+    const result = await callAceStep(prompt, dur);
+
+    console.log(`MusicPro: success - title="${result.title}" audio length=${result.audio?.length}`);
 
     return new Response(
-      JSON.stringify({ audio, prompt, duration }),
+      JSON.stringify({
+        audio: result.audio,
+        title: result.title,
+        tags: result.tags,
+        lyrics: result.lyrics,
+        duration: dur,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
