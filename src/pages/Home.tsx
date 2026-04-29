@@ -5,12 +5,50 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useI18n } from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
+import { useEffect } from "react";
+
+declare global {
+  interface Window {
+    kofiwidget2?: any;
+  }
+}
 
 export default function Home() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { t } = useI18n();
   const { user } = useAuth();
+
+  useEffect(() => {
+    const container = document.getElementById("kofi-widget-container");
+    if (!container) return;
+
+    const renderWidget = () => {
+      if (window.kofiwidget2 && container) {
+        container.innerHTML = "";
+        window.kofiwidget2.init("Support me on Ko-fi", "#72a4f2", "U7U01YMC7Z");
+        const html = window.kofiwidget2.getHTML();
+        container.innerHTML = html;
+      }
+    };
+
+    if (window.kofiwidget2) {
+      renderWidget();
+    } else {
+      const existing = document.querySelector<HTMLScriptElement>(
+        'script[src="https://storage.ko-fi.com/cdn/widget/Widget_2.js"]'
+      );
+      if (existing) {
+        existing.addEventListener("load", renderWidget);
+      } else {
+        const script = document.createElement("script");
+        script.src = "https://storage.ko-fi.com/cdn/widget/Widget_2.js";
+        script.async = true;
+        script.onload = renderWidget;
+        document.body.appendChild(script);
+      }
+    }
+  }, []);
 
   const createMutation = useMutation({
     mutationFn: async () => {
