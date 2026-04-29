@@ -102,6 +102,8 @@ export default function Home() {
               </span>
             )}
           </button>
+
+          <div id="kofi-widget-container" className="flex justify-center pt-4" />
         </div>
       </div>
     </Layout>
